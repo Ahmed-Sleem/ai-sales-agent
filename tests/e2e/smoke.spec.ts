@@ -22,7 +22,6 @@ test('demo playback uses one current synthetic property and stages its details',
   await expect(page.getByText(/The illustrative demo price is 8.45 million EGP/i)).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText(/It is 165 m²\./i)).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText(/Would you prefer cash or an installment plan/i)).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText(/Illustrative plan: 15% down, over 8 years/i)).toHaveCount(0);
   await expect(page.getByText(/Illustrative plan: 15% down, over 8 years/i)).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText(/Bamboo III|97 Hills|Palm Hills/i)).toHaveCount(0);
 });
