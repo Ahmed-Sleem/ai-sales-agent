@@ -1,0 +1,43 @@
+{
+  "name": "sara-real-estate-agent",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0 --port 3000",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0 --port ${PORT:-3000}",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test",
+    "verify": "bash scripts/verify.sh"
+  },
+  "dependencies": {
+    "lucide-react": "^0.460.0",
+    "next": "16.4.5",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "three": "^0.160.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.0",
+    "@playwright/test": "^1.64.1",
+    "@testing-library/jest-dom": "^6.6.0",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.0",
+    "@types/node": "^20.19.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/three": "^0.160.0",
+    "axe-core": "^4.10.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "16.4.5",
+    "jsdom": "^26.1.0",
+    "playwright": "^1.64.1",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.12"
+  },
+  "overrides": {
+    "minimatch": "11.0.1"
+  }
+}
