@@ -277,6 +277,9 @@ body[dir="rtl"] .panel-left {
 .panel-center {
     grid-column: 3;
     grid-row: 1 / 6;
+    /* Paint the chat UI above NightSky's fixed, non-interactive z-index: 0 canvas. */
+    position: relative;
+    z-index: 1;
     min-width: 0;
     background: var(--color-paper);
     box-shadow: var(--shadow-paper);

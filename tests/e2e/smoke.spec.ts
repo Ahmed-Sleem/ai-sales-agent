@@ -6,6 +6,9 @@ test('app shell loads without page errors', async ({ page }) => {
   page.on('pageerror', (err) => errors.push(String(err)));
   await page.goto('/');
   await expect(page.locator('body')).toBeVisible();
+  // Keep the chat panel above the fixed NightSky canvas; DOM visibility alone misses paint-order bugs.
+  await expect(page.locator('#centerPanel')).toHaveCSS('position', 'relative');
+  await expect(page.locator('#centerPanel')).toHaveCSS('z-index', '1');
   expect(errors).toEqual([]);
 
   const accessibility = await new AxeBuilder({ page }).analyze();
