@@ -12,6 +12,45 @@ test('app shell loads without page errors', async ({ page }) => {
   expect(accessibility.violations).toEqual([]);
 });
 
+test('interactive demo runs offline through qualification, gated disclosure, photos, and rejection capture', async ({ page }) => {
+  const aiProviderRequests: string[] = [];
+  page.on('request', (request) => {
+    if (/api\.openai\.com|api\.deepseek\.com|generativelanguage\.googleapis\.com|api\.groq\.com/i.test(request.url())) aiProviderRequests.push(request.url());
+  });
+  await page.goto('/');
+  const demo = page.getByRole('region', { name: 'Interactive no-key demo' });
+  await demo.getByRole('button', { name: 'Start interactive demo' }).click();
+  await expect(demo.getByText(/Peace be upon you\. I'm Sara, the sales manager\./i)).toBeVisible();
+
+  const input = demo.getByRole('textbox', { name: 'Write your demo reply' });
+  const send = () => demo.getByRole('button', { name: 'Send', exact: true }).click();
+  await input.fill('New Cairo'); await send();
+  await expect(demo.getByText(/maximum budget/i)).toBeVisible();
+  await input.fill('8.5 million EGP'); await send();
+  await expect(demo.getByText(/interior area/i)).toBeVisible();
+  await input.fill('160 square metres'); await send();
+  await expect(demo.getByText(/closest illustrative match is Apartment 02/i)).toBeVisible();
+  await expect(demo.getByText(/Would you like to hear the price/i)).toBeVisible();
+
+  await demo.getByRole('button', { name: 'Yes, continue' }).click();
+  await expect(demo.getByText(/illustrative price/i)).toBeVisible();
+  await demo.getByRole('button', { name: 'Yes, continue' }).click();
+  await expect(demo.getByText(/prefer to buy in cash/i)).toBeVisible();
+  await demo.getByRole('button', { name: 'Installments', exact: true }).click();
+  await expect(demo.getByText(/illustrative payment plans/i)).toBeVisible();
+  await demo.getByRole('button', { name: 'Send demo photos' }).click();
+  const demoImage = demo.getByRole('img', { name: /Synthetic demo photo of a bright/i });
+  await expect(demoImage).toBeVisible();
+  await expect(demoImage).toHaveJSProperty('naturalWidth', 1200);
+  const demoAccessibility = await new AxeBuilder({ page }).include('section[aria-label="Interactive no-key demo"]').analyze();
+  expect(demoAccessibility.violations).toEqual([]);
+  await demo.getByRole('button', { name: 'Explore another' }).click();
+  await expect(demo.getByText(/main reason this property is not suitable/i)).toBeVisible();
+  await demo.getByRole('button', { name: 'price', exact: true }).click();
+  await expect(demo.getByText(/couldn’t find another illustrative match/i)).toBeVisible();
+  expect(aiProviderRequests).toEqual([]);
+});
+
 test('demo playback uses one current synthetic property and stages its details', async ({ page }) => {
   await page.goto('/');
   const playDemo = page.locator('button[data-demo-ready]');

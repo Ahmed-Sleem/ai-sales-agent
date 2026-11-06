@@ -9,6 +9,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useApp, ConversationTurn } from "../context/AppContext";
 import { runAgent } from "../lib/agent";
+import { InteractiveDemo } from "./InteractiveDemo";
 import { TREE, cityById } from "../data/hierarchy";
 
 interface ExtendedTurn extends ConversationTurn {
@@ -473,6 +474,7 @@ export const ChatPanel: React.FC = () => {
         <button type="button" data-demo-ready={isDemoHydrated ? "true" : "false"} onClick={runDemoConversation} disabled={demoRunning || !isDemoHydrated} style={{ padding: "8px 14px", borderRadius: "999px", border: "none", background: "var(--color-accent)", color: "var(--color-accent-contrast)", fontWeight: 700, cursor: demoRunning || !isDemoHydrated ? "wait" : "pointer", fontSize: "12px" }}>{demoRunning ? "▶ Playing…" : "▶ Play demo conversation"}</button>
         <button type="button" onClick={resetDemo} style={{ padding: "8px 14px", borderRadius: "999px", border: "1px solid var(--border-med)", background: "var(--color-paper)", color: "var(--text-primary)", fontWeight: 700, cursor: "pointer", fontSize: "12px" }}>↺ Reset 3D city</button>
       </div>
+      <InteractiveDemo key={language} language={language} />
       {vizSelection && (
         <div style={{ display: "flex", alignItems: "center", gap: "7px", width: "fit-content", maxWidth: "68%", margin: "12px 12px 10px", padding: "5px 8px 5px 10px", borderRadius: "999px", background: "var(--glass-bg-strong, var(--color-slate))", border: "1px solid var(--border-med)", backdropFilter: "blur(14px)", fontSize: "11px", color: "var(--text-primary)" }}>
           <span aria-hidden="true">📍</span>

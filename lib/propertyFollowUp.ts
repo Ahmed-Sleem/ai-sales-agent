@@ -163,6 +163,12 @@ function photoPrompt(state: PropertyFollowUpState): PropertyFollowUpPrompt {
   };
 }
 
+/** Read the current localized prompt without advancing the follow-up state. */
+export function getPropertyFollowUpPrompt(state: PropertyFollowUpState): PropertyFollowUpPrompt {
+  getProperty(state.currentPropertyId);
+  return promptFor(state);
+}
+
 /** Start the confirm-or-explore step for the one property just disclosed. */
 export function beginPropertyFollowUp(
   currentPropertyId: string,

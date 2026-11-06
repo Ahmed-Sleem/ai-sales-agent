@@ -114,6 +114,11 @@ function promptFor(state: PropertyDisclosureState, property: InventoryProperty):
   };
 }
 
+/** Read the current localized prompt without advancing the disclosure state. */
+export function getPropertyDisclosurePrompt(state: PropertyDisclosureState): PropertyDisclosurePrompt {
+  return promptFor(state, findProperty(state.propertyId));
+}
+
 /** Start staged disclosure for exactly one catalogue property; no price, area, or plans are returned yet. */
 export function beginPropertyDisclosure(propertyId: string, language: QualificationLanguage): PropertyDisclosureStep {
   const state: PropertyDisclosureState = { propertyId, language, phase: 'location' };
