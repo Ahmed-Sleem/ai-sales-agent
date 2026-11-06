@@ -14,9 +14,16 @@ test('app shell loads without page errors', async ({ page }) => {
 
 test('demo playback uses one current synthetic property and stages its details', async ({ page }) => {
   await page.goto('/');
-  const playDemo = page.getByRole('button', { name: /Play demo conversation/i });
+  const playDemo = page.locator('button[data-demo-ready]');
   await expect(playDemo).toBeVisible();
+  await expect(playDemo).toHaveAttribute('data-demo-ready', 'true');
+  await expect(playDemo).toBeEnabled();
+  const bounds = await playDemo.boundingBox();
+  if (!bounds) throw new Error('Demo button has no visible bounds');
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await expect(page.locator('#mainWindow')).not.toHaveClass(/dock-hidden/);
   await playDemo.click();
+  await expect(playDemo).toHaveText(/Playing/i);
 
   await expect(page.getByText(/I found one closest synthetic match: Apartment 02 in New Cairo/i)).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText(/The illustrative demo price is 8.45 million EGP/i)).toBeVisible({ timeout: 10_000 });

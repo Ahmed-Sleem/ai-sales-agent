@@ -72,6 +72,11 @@ export const ChatPanel: React.FC = () => {
 
   const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
   const [demoRunning, setDemoRunning] = useState(false);
+  const [isDemoHydrated, setIsDemoHydrated] = useState(false);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setIsDemoHydrated(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
   const runDemoConversation = async () => {
     if (demoRunning) return; setDemoRunning(true);
     const say = (role: "user" | "assistant", content: string, logs?: string[]) =>
@@ -465,7 +470,7 @@ export const ChatPanel: React.FC = () => {
       </div>
 
       <div style={{ display: "flex", gap: "8px", padding: "10px 12px 0", marginBottom: "12px", flexWrap: "wrap" }}>
-        <button type="button" onClick={runDemoConversation} disabled={demoRunning} style={{ padding: "8px 14px", borderRadius: "999px", border: "none", background: "var(--color-accent)", color: "var(--color-accent-contrast)", fontWeight: 700, cursor: "pointer", fontSize: "12px" }}>{demoRunning ? "▶ Playing…" : "▶ Play demo conversation"}</button>
+        <button type="button" data-demo-ready={isDemoHydrated ? "true" : "false"} onClick={runDemoConversation} disabled={demoRunning || !isDemoHydrated} style={{ padding: "8px 14px", borderRadius: "999px", border: "none", background: "var(--color-accent)", color: "var(--color-accent-contrast)", fontWeight: 700, cursor: demoRunning || !isDemoHydrated ? "wait" : "pointer", fontSize: "12px" }}>{demoRunning ? "▶ Playing…" : "▶ Play demo conversation"}</button>
         <button type="button" onClick={resetDemo} style={{ padding: "8px 14px", borderRadius: "999px", border: "1px solid var(--border-med)", background: "var(--color-paper)", color: "var(--text-primary)", fontWeight: 700, cursor: "pointer", fontSize: "12px" }}>↺ Reset 3D city</button>
       </div>
       {vizSelection && (

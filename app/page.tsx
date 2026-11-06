@@ -55,6 +55,10 @@ export default function Home() {
     let timer: ReturnType<typeof setTimeout> | null = setTimeout(() => setDockHidden(true), 3000);
     const arm = () => { if (timer) clearTimeout(timer); timer = setTimeout(() => setDockHidden(true), 3000); };
     const onMove = (e: MouseEvent) => {
+      const chat = document.getElementById("centerPanel");
+      const chatBounds = chat?.getBoundingClientRect();
+      const overChat = chatBounds && e.clientX >= chatBounds.left && e.clientX <= chatBounds.right && e.clientY >= chatBounds.top && e.clientY <= chatBounds.bottom;
+      if (overChat) { if (timer) { clearTimeout(timer); timer = null; } setDockHidden(false); return; }
       const el = document.querySelector(".app-header");
       if (!el) return;
       const r = el.getBoundingClientRect();
