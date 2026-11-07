@@ -1241,53 +1241,52 @@ body[dir="rtl"] .main-window.single-chat-layout.right-panel-closed {
     grid-template-columns: 0px 0px minmax(320px, 1fr) 0px 0px !important;
 }
 
-/* Offline, accessible 2D Egypt map and catalogue marker cards. */
-.egypt-map-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    width: 100%;
-    height: 100%;
-    min-height: 0;
-    overflow: auto;
-    padding: 14px;
-    color: var(--text-primary);
-    background: var(--color-paper);
-}
-.egypt-map-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; }
-.egypt-map-heading h2 { font-size:15px; line-height:1.35; font-weight:800; }
-.egypt-map-heading p { margin-top:3px; font-size:10.5px; color:var(--text-meta); }
-.egypt-map-badge { padding:4px 8px; border:1px solid rgba(56,189,248,.45); border-radius:999px; color:#7dd3fc; font-size:9px; font-weight:900; letter-spacing:.08em; }
-.egypt-map-breadcrumbs { display:flex; align-items:center; gap:6px; min-height:28px; flex-wrap:wrap; font-size:11px; color:var(--text-meta); }
-.egypt-map-breadcrumbs button { border:0; background:transparent; color:var(--text-primary); cursor:pointer; font:inherit; font-weight:700; }
-.egypt-map-breadcrumbs button[aria-current="page"] { color:#38bdf8; }
-.egypt-map-breadcrumbs .egypt-map-reset { margin-inline-start:auto; padding:4px 8px; border:1px solid var(--border-med); border-radius:999px; background:var(--glass-bg-strong); }
-.egypt-map-canvas { width:100%; aspect-ratio:720/560; min-height:220px; max-height:52vh; overflow:hidden; border:1px solid var(--border-med); border-radius:16px; background:#071321; box-shadow:var(--shadow-panel); }
-.egypt-map-svg { display:block; width:100%; height:100%; }
-.egypt-map-marker { cursor:pointer; outline:none; }
-.egypt-map-marker:focus-visible circle:first-of-type { stroke:#fbbf24; stroke-width:3; }
-.egypt-map-summary { display:flex; align-items:baseline; justify-content:space-between; gap:8px; font-size:11px; }
-.egypt-map-summary strong { font-size:12px; font-weight:800; }
-.egypt-map-summary span { color:var(--text-meta); text-align:end; }
-.egypt-map-location-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(135px,1fr)); gap:7px; }
-.egypt-map-location-list button { display:flex; flex-direction:column; gap:4px; min-width:0; padding:9px 10px; border:1px solid var(--border-soft); border-radius:11px; background:var(--glass-bg-strong); color:var(--text-primary); text-align:start; cursor:pointer; }
-.egypt-map-location-list button span { font-size:11px; font-weight:800; }
-.egypt-map-location-list button small { font-size:10px; color:var(--text-meta); }
-.egypt-map-property-list { display:flex; flex-direction:column; gap:6px; }
-.egypt-map-property-list button { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px 10px; border:1px solid var(--border-soft); border-radius:11px; background:var(--glass-bg-strong); color:var(--text-primary); text-align:start; cursor:pointer; }
-.egypt-map-property-list button[aria-pressed="true"] { border-color:#38bdf8; box-shadow:0 0 0 2px rgba(56,189,248,.15); }
-.egypt-map-property-list button span { display:flex; flex-direction:column; gap:3px; }
-.egypt-map-property-list strong { font-size:11px; }
-.egypt-map-property-list small { font-size:10px; color:var(--text-meta); }
-.egypt-map-property-list b { font-size:10px; white-space:nowrap; }
-.egypt-map-selected-property { display:flex; flex-direction:column; gap:4px; padding:10px; border:1px solid rgba(56,189,248,.4); border-radius:11px; background:rgba(56,189,248,.09); font-size:11px; }
-.egypt-map-selected-property span,.egypt-map-selected-property small { color:var(--text-meta); }
-.egypt-map-notice { font-size:10px; line-height:1.5; color:var(--text-meta); }
-.egypt-map-attribution { border-top:1px solid var(--border-soft); padding-top:8px; font-size:9px; color:var(--text-meta); }
+/* Detailed bundled OSM map with the required credit kept inside the map frame. */
+.egypt-map-panel { display:flex; width:100%; height:100%; min-height:0; padding:0; overflow:hidden; background:transparent; }
+.egypt-map-viewport { position:relative; width:100%; height:100%; min-height:0; overflow:hidden; border:1px solid var(--border-soft); border-radius:14px; background:#081521; box-shadow:var(--shadow-panel); isolation:isolate; }
+.egypt-map-svg { display:block; width:100%; height:100%; cursor:grab; touch-action:none; user-select:none; }
+.egypt-map-svg:active { cursor:grabbing; }
+.map-osm-basemap { pointer-events:none; }
+.map-governorate-shape { fill:rgba(94,174,209,.025); stroke:#8ab7cf; stroke-width:.8; stroke-opacity:.52; vector-effect:non-scaling-stroke; cursor:pointer; pointer-events:all; transition:fill .16s,stroke .16s; }
+.map-governorate-shape:hover,.map-governorate-shape:focus-visible { fill:rgba(56,189,248,.15); stroke:#bae6fd; stroke-opacity:.95; stroke-width:1.6; outline:none; }
+.map-governorate-shape.selected { fill:rgba(56,189,248,.18); stroke:#38bdf8; stroke-opacity:1; stroke-width:1.7; }
+.map-place,.map-cluster,.map-property { cursor:pointer; outline:none; filter:url(#map-marker-shadow); }
+.map-place:focus-visible circle,.map-cluster:focus-visible circle,.map-property:focus-visible circle { stroke:#fbbf24; stroke-width:2.5; }
+.map-place-dot { fill:#a5b4c4; stroke:#e2e8f0; stroke-width:.7; }
+.map-place-dot.inventory { fill:#38bdf8; stroke:#dff7ff; stroke-width:1.2; }
+.map-place-glow { fill:rgba(56,189,248,.1); stroke:rgba(56,189,248,.25); stroke-width:.7; pointer-events:none; }
+.map-place.selected .map-place-glow { fill:rgba(56,189,248,.3); stroke:#7dd3fc; }
+.map-place-count,.map-cluster-count { fill:#04111d; font:800 6px/1 sans-serif; }
+.map-place-label,.map-cluster-label { fill:#f3f8fc; font:700 7px/1.1 system-ui,sans-serif; paint-order:stroke; stroke:#06111c; stroke-width:2.2px; stroke-linejoin:round; filter:drop-shadow(0 1px 2px #000); }
+.map-cluster-ring { fill:rgba(56,189,248,.19); stroke:rgba(125,211,252,.65); stroke-width:1; }
+.map-cluster-dot { fill:#38bdf8; stroke:#e0f2fe; stroke-width:1.3; }
+.map-cluster.highlighted .map-cluster-ring,.map-property.selected .map-property-dot { fill:rgba(250,204,21,.34); stroke:#fde047; }
+.map-cluster.shortlisted .map-cluster-ring,.map-property.shortlisted .map-property-dot { fill:rgba(52,211,153,.35); stroke:#34d399; }
+.map-cluster.rejected .map-cluster-ring,.map-property.rejected .map-property-dot { fill:rgba(251,113,133,.34); stroke:#fb7185; }
+.map-property-dot { fill:#38bdf8; stroke:#e0f2fe; stroke-width:1.3; }
+.map-control-stack { position:absolute; z-index:3; inset-block-start:12px; inset-inline-end:12px; display:flex; flex-direction:column; align-items:center; gap:4px; padding:5px; border:1px solid rgba(148,163,184,.25); border-radius:12px; background:rgba(6,16,27,.82); color:#dbeafe; backdrop-filter:blur(10px); box-shadow:0 8px 22px #02070d77; }
+.map-control-stack button { display:grid; place-items:center; width:29px; height:29px; border:0; border-radius:8px; background:rgba(148,163,184,.12); color:#f1f5f9; font-size:18px; line-height:1; cursor:pointer; }
+.map-control-stack button:hover { background:rgba(56,189,248,.22); }
+.map-control-stack span { min-width:30px; text-align:center; color:#a8c5d9; font:700 9px/1.2 system-ui,sans-serif; }
+.map-focus-label { position:absolute; z-index:2; inset-block-start:12px; inset-inline-start:12px; display:flex; align-items:center; gap:7px; max-width:calc(100% - 66px); padding:7px 10px; overflow:hidden; border:1px solid rgba(56,189,248,.35); border-radius:10px; background:rgba(6,16,27,.82); color:#e0f2fe; font-size:11px; font-weight:800; text-overflow:ellipsis; white-space:nowrap; backdrop-filter:blur(10px); }
+.map-focus-label span { color:#38bdf8; }
+.map-focus-property { position:absolute; z-index:2; inset-block-end:38px; inset-inline-start:12px; display:flex; flex-direction:column; gap:3px; max-width:calc(100% - 24px); padding:8px 10px; border:1px solid rgba(56,189,248,.35); border-radius:10px; background:rgba(6,16,27,.86); color:#e0f2fe; font-size:10px; backdrop-filter:blur(10px); }
+.map-focus-property strong { font-size:11px; }
+.map-focus-property span { color:#b9cbd8; }
+.map-focus-property small { color:#7dd3fc; font-size:8px; }
+.map-osm-credit { position:absolute; z-index:2; inset-inline-end:10px; inset-block-end:8px; padding:3px 6px; border-radius:6px; background:rgba(4,12,20,.72); color:#bdcad4; font:600 8px/1.2 system-ui,sans-serif; text-decoration:none; }
+.map-osm-credit:hover { color:#fff; text-decoration:underline; }
+.map-synthetic-legend { position:absolute; z-index:2; inset-inline-start:10px; inset-block-end:8px; display:flex; align-items:center; gap:5px; padding:3px 6px; border-radius:6px; background:rgba(4,12,20,.72); color:#b9cbd8; font:600 8px/1.2 system-ui,sans-serif; }
+.map-synthetic-legend span { width:6px; height:6px; border-radius:50%; background:#38bdf8; box-shadow:0 0 0 2px rgba(56,189,248,.2); }
+@media(max-width:768px) { .egypt-map-viewport { border-radius:10px; } .map-control-stack { inset-block-start:8px; inset-inline-end:8px; } .map-focus-label { inset-block-start:8px; inset-inline-start:8px; } }
 
-/* Synthetic analytics dashboard shown in place of the same chat workspace (no duplicate composer). */
-.center-view-stack { width:100%; height:100%; min-height:0; display:flex; flex-direction:column; }
-.center-chat-view { width:100%; height:100%; min-height:0; display:flex; flex-direction:column; }
+/* Right-side map/analytics work surface; the chat stays mounted and keeps one composer/transcript. */
+.right-panel-map-view:not([hidden]), .right-panel-analytics-view:not([hidden]) { display:flex; flex-direction:column; width:100%; height:100%; min-height:0; overflow:hidden; }
+.right-panel-analytics-view .analytics-dashboard { overflow:auto; padding:14px; }
+.dashboard-panel-open .panel-right { background:var(--color-paper); }
+.map-selection-attachment { display:inline-flex; align-items:center; gap:5px; margin:7px 0 0; padding:4px 8px; border:1px solid rgba(56,189,248,.34); border-radius:999px; background:rgba(56,189,248,.09); color:#7dd3fc; font-size:10px; font-weight:750; }
+
+/* Synthetic analytics dashboard in the right-side panel (chat/composer remains available). */
 .analytics-dashboard { display:flex; flex-direction:column; gap:14px; width:100%; height:100%; min-height:0; overflow:auto; padding:4px 2px 12px; color:var(--text-primary); }
 .analytics-header { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; }
 .analytics-header h2 { margin-top:4px; font-size:22px; line-height:1.2; font-weight:850; letter-spacing:-.025em; }

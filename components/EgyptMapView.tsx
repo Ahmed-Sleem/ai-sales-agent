@@ -1,235 +1,352 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
-import { EGYPT_MAP_SOURCE, EGYPT_MAP_VIEWBOX, EGYPT_LOCATION_MARKERS, EGYPT_PROPERTY_MARKERS, EGYPT_SVG_PATH, projectEgyptCoordinate, type EgyptLocationMarker } from "../data/egyptMap";
-import { INVENTORY, INVENTORY_NOTICE, type InventoryProperty } from "../data/catalogue";
-import { useApp } from "../context/AppContext";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { EGYPT_MAP_VIEWBOX, EGYPT_LOCATION_MARKERS, EGYPT_PROPERTY_MARKERS, projectEgyptCoordinate, type EgyptLocationMarker, type SvgPoint } from "../data/egyptMap";
+import { INVENTORY, type InventoryProperty, type LocalizedText } from "../data/catalogue";
+import governorates from "../data/egyptGovernorates.json";
+import { useApp, type MapSelection } from "../context/AppContext";
 
+const MAP_WIDTH = 598;
+const MAP_HEIGHT = 548;
+const PUBLIC_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+const ADMIN_SCALE_X = MAP_WIDTH / 548.58221;
+const ADMIN_SCALE_Y = MAP_HEIGHT / 498.86664;
 const PROPERTIES_BY_ID = new Map<string, InventoryProperty>(INVENTORY.map((property) => [property.id, property] as [string, InventoryProperty]));
-const nameIn = (value: { en: string; ar: string }, language: "en" | "ar") => value[language];
+const CATALOG_CITY_BY_GOVERNORATE: Record<string, string> = { "EG-C": "cairo", "EG-GZ": "giza-west", "EG-ALX": "alexandria", "EG-MT": "north-coast" };
 
-function formatEgp(amount: number, language: "en" | "ar"): string {
-  return new Intl.NumberFormat(language === "ar" ? "ar-EG" : "en-EG", {
-    style: "currency", currency: "EGP", maximumFractionDigits: 0,
-  }).format(amount);
+interface GovernorateShape {
+  readonly id: string;
+  readonly name: LocalizedText;
+  readonly d: string;
 }
+interface MapPlace {
+  readonly id: string;
+  readonly name: LocalizedText;
+  readonly coordinates: { latitude: number; longitude: number };
+  readonly governorateId?: string;
+}
+const GOVERNORATE_SHAPES = governorates as readonly GovernorateShape[];
+const MAJOR_PLACES: readonly MapPlace[] = [
+  { id: "alexandria", name: { en: "Alexandria", ar: "الإسكندرية" }, coordinates: { latitude: 31.2001, longitude: 29.9187 }, governorateId: "EG-ALX" },
+  { id: "matrouh", name: { en: "Matrouh", ar: "مطروح" }, coordinates: { latitude: 31.3543, longitude: 27.2373 }, governorateId: "EG-MT" },
+  { id: "damanhur", name: { en: "Damanhur", ar: "دمنهور" }, coordinates: { latitude: 31.0341, longitude: 30.4682 }, governorateId: "EG-BH" },
+  { id: "kafr-el-sheikh", name: { en: "Kafr El Sheikh", ar: "كفر الشيخ" }, coordinates: { latitude: 31.1117, longitude: 30.9399 }, governorateId: "EG-KFS" },
+  { id: "damietta", name: { en: "Damietta", ar: "دمياط" }, coordinates: { latitude: 31.4175, longitude: 31.8144 }, governorateId: "EG-DT" },
+  { id: "port-said", name: { en: "Port Said", ar: "بورسعيد" }, coordinates: { latitude: 31.2653, longitude: 32.3019 }, governorateId: "EG-PTS" },
+  { id: "el-arish", name: { en: "El Arish", ar: "العريش" }, coordinates: { latitude: 31.1316, longitude: 33.7984 }, governorateId: "EG-SIN" },
+  { id: "mansoura", name: { en: "Mansoura", ar: "المنصورة" }, coordinates: { latitude: 31.0409, longitude: 31.3785 }, governorateId: "EG-DK" },
+  { id: "tanta", name: { en: "Tanta", ar: "طنطا" }, coordinates: { latitude: 30.7865, longitude: 31.0004 }, governorateId: "EG-GH" },
+  { id: "zagazig", name: { en: "Zagazig", ar: "الزقازيق" }, coordinates: { latitude: 30.5877, longitude: 31.502, }, governorateId: "EG-SHR" },
+  { id: "ismailia", name: { en: "Ismailia", ar: "الإسماعيلية" }, coordinates: { latitude: 30.5965, longitude: 32.2715 }, governorateId: "EG-IS" },
+  { id: "cairo", name: { en: "Cairo", ar: "القاهرة" }, coordinates: { latitude: 30.0444, longitude: 31.2357 }, governorateId: "EG-C" },
+  { id: "giza", name: { en: "Giza", ar: "الجيزة" }, coordinates: { latitude: 29.987, longitude: 31.2118 }, governorateId: "EG-GZ" },
+  { id: "giza-west", name: { en: "Giza / West Cairo", ar: "الجيزة وغرب القاهرة" }, coordinates: { latitude: 30.035, longitude: 30.994 }, governorateId: "EG-GZ" },
+  { id: "north-coast", name: { en: "North Coast", ar: "الساحل الشمالي" }, coordinates: { latitude: 30.837, longitude: 28.984 }, governorateId: "EG-MT" },
+  { id: "new-cairo", name: { en: "New Cairo", ar: "القاهرة الجديدة" }, coordinates: { latitude: 30.03, longitude: 31.47 }, governorateId: "EG-C" },
+  { id: "sixth-october", name: { en: "6th of October", ar: "السادس من أكتوبر" }, coordinates: { latitude: 29.93, longitude: 30.91 }, governorateId: "EG-GZ" },
+  { id: "suez", name: { en: "Suez", ar: "السويس" }, coordinates: { latitude: 29.9668, longitude: 32.5498 }, governorateId: "EG-SUZ" },
+  { id: "fayoum", name: { en: "Fayoum", ar: "الفيوم" }, coordinates: { latitude: 29.3084, longitude: 30.8428 }, governorateId: "EG-FYM" },
+  { id: "beni-suef", name: { en: "Beni Suef", ar: "بني سويف" }, coordinates: { latitude: 29.0661, longitude: 31.0994 }, governorateId: "EG-BNS" },
+  { id: "minya", name: { en: "Minya", ar: "المنيا" }, coordinates: { latitude: 28.1099, longitude: 30.7503 }, governorateId: "EG-MN" },
+  { id: "asyut", name: { en: "Asyut", ar: "أسيوط" }, coordinates: { latitude: 27.1809, longitude: 31.1837 }, governorateId: "EG-AST" },
+  { id: "sohag", name: { en: "Sohag", ar: "سوهاج" }, coordinates: { latitude: 26.5569, longitude: 31.6948 }, governorateId: "EG-SHG" },
+  { id: "qena", name: { en: "Qena", ar: "قنا" }, coordinates: { latitude: 26.1642, longitude: 32.7267 }, governorateId: "EG-KN" },
+  { id: "luxor", name: { en: "Luxor", ar: "الأقصر" }, coordinates: { latitude: 25.6872, longitude: 32.6396 }, governorateId: "EG-LX" },
+  { id: "hurghada", name: { en: "Hurghada", ar: "الغردقة" }, coordinates: { latitude: 27.2579, longitude: 33.8116 }, governorateId: "EG-BA" },
+  { id: "aswan", name: { en: "Aswan", ar: "أسوان" }, coordinates: { latitude: 24.0889, longitude: 32.8998 }, governorateId: "EG-ASN" },
+  { id: "kom-ombo", name: { en: "Kom Ombo", ar: "كوم أمبو" }, coordinates: { latitude: 24.474, longitude: 32.946 }, governorateId: "EG-ASN" },
+  { id: "kharga", name: { en: "El Kharga", ar: "الخارجة" }, coordinates: { latitude: 25.439, longitude: 30.5586 }, governorateId: "EG-WAD" },
+];
+
+const nameIn = (value: LocalizedText, language: "en" | "ar") => value[language];
+const markerPoint = (coordinates: { latitude: number; longitude: number }) =>
+  projectEgyptCoordinate(coordinates.latitude, coordinates.longitude, { ...EGYPT_MAP_VIEWBOX, width: MAP_WIDTH, height: MAP_HEIGHT, padding: 8 });
 
 export const EgyptMapView: React.FC = () => {
-  const { language, setVizSelection } = useApp();
+  const { language, vizSelection, setVizSelection, mapDirective } = useApp();
   const [cityId, setCityId] = useState<string | null>(null);
   const [districtId, setDistrictId] = useState<string | null>(null);
   const [communityId, setCommunityId] = useState<string | null>(null);
   const [propertyId, setPropertyId] = useState<string | null>(null);
+  const [selectedGovernorateId, setSelectedGovernorateId] = useState<string | null>(null);
+  const [highlightedIds, setHighlightedIds] = useState<readonly string[]>([]);
+  const [shortlistIds, setShortlistIds] = useState<readonly string[]>([]);
+  const [rejectedIds, setRejectedIds] = useState<readonly string[]>([]);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const pointerRef = useRef<{ id: number; x: number; y: number; panX: number; panY: number; moved: boolean } | null>(null);
+  const suppressClickRef = useRef(false);
+  const svgRef = useRef<SVGSVGElement | null>(null);
   const isArabic = language === "ar";
 
-  const cities = EGYPT_LOCATION_MARKERS.filter((marker) => marker.level === "city");
-  const districts = EGYPT_LOCATION_MARKERS.filter((marker) => marker.level === "district" && marker.cityId === cityId);
-  const communities = EGYPT_LOCATION_MARKERS.filter((marker) => marker.level === "community" && marker.districtId === districtId);
+  const cities = useMemo(() => EGYPT_LOCATION_MARKERS.filter((marker) => marker.level === "city"), []);
+  const districts = useMemo(() => EGYPT_LOCATION_MARKERS.filter((marker) => marker.level === "district" && marker.cityId === cityId), [cityId]);
+  const communities = useMemo(() => EGYPT_LOCATION_MARKERS.filter((marker) => marker.level === "community" && marker.districtId === districtId), [districtId]);
   const properties = useMemo(() => EGYPT_PROPERTY_MARKERS.filter((marker) =>
     marker.cityId === cityId && marker.districtId === districtId && marker.communityId === communityId,
   ), [cityId, districtId, communityId]);
   const visibleLocations = !cityId ? cities : !districtId ? districts : !communityId ? communities : [];
-  const selectedProperty = propertyId ? PROPERTIES_BY_ID.get(propertyId) ?? null : null;
-  const currentCity = cities.find((marker) => marker.cityId === cityId) ?? null;
-  const currentDistrict = districts.find((marker) => marker.districtId === districtId) ?? null;
-  const currentCommunity = communities.find((marker) => marker.communityId === communityId) ?? null;
-  const title = !cityId
-    ? (isArabic ? "خريطة مصر التجريبية" : "Egypt demo map")
-    : !districtId
-      ? nameIn(currentCity?.name ?? { en: "Egypt", ar: "مصر" }, language)
-      : !communityId
-        ? nameIn(currentDistrict?.name ?? { en: "Area", ar: "منطقة" }, language)
-        : nameIn(currentCommunity?.name ?? { en: "Community", ar: "مجتمع" }, language);
+  const currentLocation = [...cities, ...districts, ...communities].find((marker) =>
+    marker.cityId === cityId && (!districtId || marker.districtId === districtId) && (!communityId || marker.communityId === communityId),
+  );
 
-  const selectLocation = (marker: EgyptLocationMarker) => {
+  const zoomToPoint = useCallback((point: SvgPoint, scale: number) => {
+    const next = Math.max(1, Math.min(7, scale));
+    setZoom(next);
+    setPan({ x: MAP_WIDTH / 2 - point.x * next, y: MAP_HEIGHT / 2 - point.y * next });
+  }, []);
+  const mapSelectionFor = (id: string, name: string, detail: string, level: MapSelection["level"], coordinates?: { latitude: number; longitude: number }): MapSelection => ({
+    id, name, detail, level, ...(coordinates ? { coordinates } : {}),
+  });
+
+  const selectLocation = (marker: EgyptLocationMarker, coordinates = marker.coordinates) => {
+    if (suppressClickRef.current) return;
+    setSelectedGovernorateId(null);
     setPropertyId(null);
     if (marker.level === "city") {
-      setCityId(marker.cityId);
-      setDistrictId(null);
-      setCommunityId(null);
+      setCityId(marker.cityId); setDistrictId(null); setCommunityId(null);
     } else if (marker.level === "district") {
-      setCityId(marker.cityId);
-      setDistrictId(marker.districtId ?? null);
-      setCommunityId(null);
+      setCityId(marker.cityId); setDistrictId(marker.districtId ?? null); setCommunityId(null);
     } else {
-      setCityId(marker.cityId);
-      setDistrictId(marker.districtId ?? null);
-      setCommunityId(marker.communityId ?? null);
+      setCityId(marker.cityId); setDistrictId(marker.districtId ?? null); setCommunityId(marker.communityId ?? null);
     }
-    setVizSelection({
-      id: marker.id,
-      name: nameIn(marker.name, language),
-      detail: isArabic ? `${marker.propertyCount} وحدات تجريبية` : `${marker.propertyCount} demo properties`,
-    });
+    const point = markerPoint(coordinates);
+    zoomToPoint(point, marker.level === "city" ? 2.0 : marker.level === "district" ? 3.1 : 4.2);
+    const label = nameIn(marker.name, language);
+    setVizSelection(mapSelectionFor(marker.id, label, marker.level, marker.level, coordinates));
+  };
+
+  const selectPlace = (place: MapPlace) => {
+    if (suppressClickRef.current) return;
+    const catalogCity = cities.find((marker) => marker.cityId === place.id);
+    setSelectedGovernorateId(place.governorateId ?? null);
+    if (catalogCity) {
+      selectLocation(catalogCity, place.coordinates);
+      return;
+    }
+    setCityId(null); setDistrictId(null); setCommunityId(null); setPropertyId(null);
+    zoomToPoint(markerPoint(place.coordinates), 2.15);
+    setVizSelection(mapSelectionFor(`place:${place.id}`, nameIn(place.name, language), isArabic ? "مدينة" : "City", "city", place.coordinates));
   };
 
   const selectProperty = (property: InventoryProperty) => {
+    if (suppressClickRef.current) return;
     setPropertyId(property.id);
-    setVizSelection({
-      id: property.id,
-      name: nameIn(property.title, language),
-      detail: `${nameIn(property.community.name, language)} · ${property.areaSqm} m²`,
-    });
+    setCityId(property.city.id); setDistrictId(property.district.id); setCommunityId(property.community.id);
+    const point = markerPoint(property.coordinates);
+    zoomToPoint(point, 5.2);
+    setVizSelection(mapSelectionFor(property.id, nameIn(property.title, language), `${nameIn(property.community.name, language)} · ${property.areaSqm} m²`, "property", property.coordinates));
+  };
+
+  const selectGovernorate = (region: GovernorateShape, pathElement: SVGPathElement) => {
+    if (suppressClickRef.current) return;
+    const bounds = pathElement.getBBox();
+    const point = { x: (bounds.x + bounds.width / 2) * ADMIN_SCALE_X, y: (bounds.y + bounds.height / 2) * ADMIN_SCALE_Y };
+    setSelectedGovernorateId(region.id);
+    setPropertyId(null); setDistrictId(null); setCommunityId(null);
+    const catalogCityId = CATALOG_CITY_BY_GOVERNORATE[region.id];
+    setCityId(catalogCityId ?? null);
+    zoomToPoint(point, 1.75);
+    const label = nameIn(region.name, language);
+    setVizSelection(mapSelectionFor(`governorate:${region.id}`, label, isArabic ? "محافظة" : "Governorate", "governorate"));
   };
 
   const resetMap = () => {
-    setCityId(null);
-    setDistrictId(null);
-    setCommunityId(null);
-    setPropertyId(null);
+    setCityId(null); setDistrictId(null); setCommunityId(null); setPropertyId(null); setSelectedGovernorateId(null);
+    setHighlightedIds([]); setShortlistIds([]); setRejectedIds([]); setZoom(1); setPan({ x: 0, y: 0 });
     setVizSelection(null);
   };
 
-  const chooseBreadcrumb = (level: "egypt" | "city" | "district") => {
-    setPropertyId(null);
-    if (level === "egypt") {
-      resetMap();
-    } else if (level === "city") {
-      setDistrictId(null);
-      setCommunityId(null);
-      setVizSelection(currentCity ? { id: currentCity.id, name: nameIn(currentCity.name, language), detail: `${currentCity.propertyCount} demo properties` } : null);
-    } else {
-      setCommunityId(null);
-      setVizSelection(currentDistrict ? { id: currentDistrict.id, name: nameIn(currentDistrict.name, language), detail: `${currentDistrict.propertyCount} demo properties` } : null);
+  useEffect(() => {
+    if (!mapDirective) return;
+    const frame = window.requestAnimationFrame(() => {
+      const directive = mapDirective.directive;
+      const path = directive.drillPath ?? [];
+      const nextCity = path[0] ?? null;
+      const nextDistrict = path[1] ?? null;
+      const nextCommunity = path[2] ?? null;
+      setCityId(nextCity); setDistrictId(nextDistrict); setCommunityId(nextCommunity);
+      setHighlightedIds(directive.inspectIds ?? []);
+      setShortlistIds(directive.shortlistIds ?? []);
+      setRejectedIds(directive.rejectedIds ?? []);
+      if (directive.focusId) {
+        const focusedProperty = PROPERTIES_BY_ID.get(directive.focusId);
+        if (focusedProperty) {
+          setPropertyId(focusedProperty.id);
+          setCityId(focusedProperty.city.id); setDistrictId(focusedProperty.district.id); setCommunityId(focusedProperty.community.id);
+          zoomToPoint(markerPoint(focusedProperty.coordinates), 5.2);
+        } else {
+          const focusedLocation = EGYPT_LOCATION_MARKERS.find((marker) => marker.id === directive.focusId || marker.cityId === directive.focusId || marker.districtId === directive.focusId || marker.communityId === directive.focusId);
+          if (focusedLocation) zoomToPoint(markerPoint(focusedLocation.coordinates), focusedLocation.level === "city" ? 2 : focusedLocation.level === "district" ? 3.1 : 4.2);
+        }
+      } else if (nextCommunity || nextDistrict || nextCity) {
+        const focus = EGYPT_LOCATION_MARKERS.find((marker) => marker.communityId === nextCommunity && marker.districtId === nextDistrict && marker.cityId === nextCity)
+          ?? EGYPT_LOCATION_MARKERS.find((marker) => marker.districtId === nextDistrict && marker.cityId === nextCity)
+          ?? EGYPT_LOCATION_MARKERS.find((marker) => marker.cityId === nextCity);
+        if (focus) zoomToPoint(markerPoint(focus.coordinates), focus.level === "city" ? 1.9 : focus.level === "district" ? 3 : 4);
+      } else {
+        setZoom(1); setPan({ x: 0, y: 0 });
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [mapDirective, zoomToPoint]);
+
+  const handleWheel = (event: React.WheelEvent<SVGSVGElement>) => {
+    event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const localX = (event.clientX - rect.left) * MAP_WIDTH / rect.width;
+    const localY = (event.clientY - rect.top) * MAP_HEIGHT / rect.height;
+    const nextZoom = Math.max(1, Math.min(7, zoom * (event.deltaY < 0 ? 1.15 : 1 / 1.15)));
+    const ratio = nextZoom / zoom;
+    setPan({ x: localX - (localX - pan.x) * ratio, y: localY - (localY - pan.y) * ratio });
+    setZoom(nextZoom);
+  };
+  const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (event.button !== 0) return;
+    pointerRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y, moved: false };
+  };
+  const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    const pointer = pointerRef.current;
+    if (!pointer || pointer.id !== event.pointerId) return;
+    const dx = (event.clientX - pointer.x) * MAP_WIDTH / event.currentTarget.clientWidth;
+    const dy = (event.clientY - pointer.y) * MAP_HEIGHT / event.currentTarget.clientHeight;
+    if (!pointer.moved && Math.abs(dx) + Math.abs(dy) > 3) {
+      pointer.moved = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
     }
+    if (pointer.moved) setPan({ x: pointer.panX + dx, y: pointer.panY + dy });
+  };
+  const handlePointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
+    const pointer = pointerRef.current;
+    if (pointer?.id === event.pointerId && pointer.moved) {
+      suppressClickRef.current = true;
+      window.setTimeout(() => { suppressClickRef.current = false; }, 120);
+    }
+    pointerRef.current = null;
+  };
+  const zoomBy = (amount: number) => {
+    const nextZoom = Math.max(1, Math.min(7, zoom + amount));
+    const center = { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 };
+    const ratio = nextZoom / zoom;
+    setPan({ x: center.x - (center.x - pan.x) * ratio, y: center.y - (center.y - pan.y) * ratio });
+    setZoom(nextZoom);
   };
 
-  const locationButton = (marker: EgyptLocationMarker, index: number) => {
-    const point = projectEgyptCoordinate(marker.coordinates.latitude, marker.coordinates.longitude, EGYPT_MAP_VIEWBOX);
-    const markerName = nameIn(marker.name, language);
-    const radius = Math.min(15, 7 + marker.propertyCount);
+  const regionCityId = (regionId: string) => CATALOG_CITY_BY_GOVERNORATE[regionId];
+  const selectedRegionName = GOVERNORATE_SHAPES.find((region) => region.id === selectedGovernorateId);
+  const currentName = currentLocation ? nameIn(currentLocation.name, language) : selectedRegionName ? nameIn(selectedRegionName.name, language) : null;
+
+  const placeLabel = (place: MapPlace, index: number) => {
+    const point = markerPoint(place.coordinates);
+    const catalogMarker = cities.find((marker) => marker.cityId === place.id);
+    const active = vizSelection?.id === `place:${place.id}` || (catalogMarker && vizSelection?.id === catalogMarker.id) || highlightedIds.includes(place.id) || Boolean(catalogMarker && highlightedIds.includes(catalogMarker.cityId));
+    const showLabel = zoom > 1.22 || ["cairo", "alexandria", "giza", "giza-west", "north-coast", "luxor", "aswan", "suez", "matrouh"].includes(place.id);
+    if (!showLabel) return null;
     return (
-      <g
-        key={marker.id}
-        className="egypt-map-marker"
-        role="button"
-        tabIndex={0}
-        aria-label={isArabic ? `${markerName}، ${marker.propertyCount} وحدات تجريبية` : `${markerName}, ${marker.propertyCount} synthetic demo properties`}
-        onClick={() => selectLocation(marker)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            selectLocation(marker);
-          }
-        }}
-      >
-        <title>{`${markerName} · ${marker.propertyCount}`}</title>
-        <circle cx={point.x} cy={point.y} r={radius + 8} fill="#38bdf8" opacity="0.12" />
-        <circle cx={point.x} cy={point.y} r={radius} fill="#38bdf8" stroke="#e0f2fe" strokeWidth="2" />
-        <text x={point.x} y={point.y + 4} textAnchor="middle" fontSize="10" fontWeight="800" fill="#052033" pointerEvents="none" aria-hidden="true">{Math.min(marker.propertyCount, 99)}</text>
-        <text x={point.x + radius + 6} y={point.y + (index % 2 ? 4 : -6)} fontSize="12" fontWeight="700" fill="#f8fafc" paintOrder="stroke" stroke="#07111f" strokeWidth="3" strokeLinejoin="round" pointerEvents="none" aria-hidden="true">{markerName}</text>
+      <g key={place.id} className={`map-place ${active ? "selected" : ""}`} role="button" tabIndex={0}
+        aria-label={`${nameIn(place.name, language)}${catalogMarker ? `, ${catalogMarker.propertyCount} ${isArabic ? "وحدات توضيحية" : "illustrative listings"}` : ""}`}
+        data-map-location-id={place.id}
+        onClick={() => catalogMarker ? selectLocation(catalogMarker, place.coordinates) : selectPlace(place)}
+        onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectPlace(place); } }}>
+        <title>{nameIn(place.name, language)}</title>
+        {catalogMarker ? <circle className="map-place-glow" cx={point.x} cy={point.y} r={active ? 17 : 12} /> : null}
+        <circle cx={point.x} cy={point.y} r={active ? 6.5 : catalogMarker ? 5 : 2.2} className={catalogMarker ? "map-place-dot inventory" : "map-place-dot"} />
+        <text x={point.x + 8} y={point.y + (index % 2 ? 10 : -7)} className="map-place-label" pointerEvents="none">{nameIn(place.name, language)}</text>
+        {catalogMarker ? <text x={point.x} y={point.y + 2.5} className="map-place-count" textAnchor="middle" pointerEvents="none">{Math.min(catalogMarker.propertyCount, 99)}</text> : null}
       </g>
     );
   };
 
-  const propertyButton = (property: InventoryProperty, index: number) => {
-    const point = projectEgyptCoordinate(property.coordinates.latitude, property.coordinates.longitude, EGYPT_MAP_VIEWBOX);
-    const propertyName = nameIn(property.title, language);
+  const locationMarker = (marker: EgyptLocationMarker, index: number) => {
+    const point = markerPoint(marker.coordinates);
+    const active = vizSelection?.id === marker.id || highlightedIds.includes(marker.id) || highlightedIds.includes(marker.cityId) || Boolean(marker.districtId && highlightedIds.includes(marker.districtId)) || Boolean(marker.communityId && highlightedIds.includes(marker.communityId)) || marker.propertyIds.some((id) => highlightedIds.includes(id));
+    const shortlisted = marker.propertyIds.some((id) => shortlistIds.includes(id));
+    const rejected = marker.propertyIds.some((id) => rejectedIds.includes(id));
     return (
-      <g
-        key={property.id}
-        className="egypt-map-marker"
-        role="button"
-        tabIndex={0}
-        aria-label={isArabic ? `${propertyName}، ${property.areaSqm} متر مربع` : `${propertyName}, ${property.areaSqm} square metres`}
-        onClick={() => selectProperty(property)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            selectProperty(property);
-          }
-        }}
-      >
-        <title>{propertyName}</title>
-        <circle cx={point.x} cy={point.y} r={propertyId === property.id ? 12 : 7} fill={propertyId === property.id ? "#fbbf24" : "#a78bfa"} stroke="#f5f3ff" strokeWidth="2" />
-        <text x={point.x + 11} y={point.y + (index % 2 ? 12 : -7)} fontSize="11" fontWeight="700" fill="#fff" paintOrder="stroke" stroke="#07111f" strokeWidth="3" strokeLinejoin="round" pointerEvents="none" aria-hidden="true">{propertyName}</text>
+      <g key={marker.id} className={`map-cluster ${active ? "highlighted" : ""} ${shortlisted ? "shortlisted" : ""} ${rejected ? "rejected" : ""}`} role="button" tabIndex={0}
+        aria-label={`${nameIn(marker.name, language)}, ${marker.propertyCount} ${isArabic ? "وحدات توضيحية" : "illustrative listings"}`}
+        data-map-location-id={marker.id} onClick={() => selectLocation(marker)}
+        onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectLocation(marker); } }}>
+        <title>{`${nameIn(marker.name, language)} · ${marker.propertyCount}`}</title>
+        <circle cx={point.x} cy={point.y} r={active ? 22 : 15} className="map-cluster-ring" />
+        <circle cx={point.x} cy={point.y} r={active ? 8 : 6} className="map-cluster-dot" />
+        <text x={point.x + 11} y={point.y - 9 + (index % 2 ? 10 : 0)} className="map-cluster-label" pointerEvents="none">{nameIn(marker.name, language)}</text>
+        <text x={point.x} y={point.y + 2.5} className="map-cluster-count" textAnchor="middle" pointerEvents="none">{Math.min(marker.propertyCount, 99)}</text>
       </g>
     );
   };
 
-  const propertyList = communityId
-    ? properties.map((marker) => PROPERTIES_BY_ID.get(marker.id)).filter((property): property is InventoryProperty => Boolean(property))
-    : [];
+  const propertyMarker = (marker: (typeof EGYPT_PROPERTY_MARKERS)[number], index: number) => {
+    const property = PROPERTIES_BY_ID.get(marker.id);
+    if (!property) return null;
+    const point = markerPoint(marker.coordinates);
+    const selected = propertyId === property.id || vizSelection?.id === property.id || highlightedIds.includes(property.id);
+    const shortlisted = shortlistIds.includes(property.id);
+    const rejected = rejectedIds.includes(property.id);
+    return (
+      <g key={property.id} className={`map-property ${selected ? "selected" : ""} ${shortlisted ? "shortlisted" : ""} ${rejected ? "rejected" : ""}`} role="button" tabIndex={0}
+        aria-label={`${nameIn(property.title, language)}, ${property.areaSqm} ${isArabic ? "متر مربع" : "square metres"}`}
+        data-map-location-id={property.id} onClick={() => selectProperty(property)}
+        onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectProperty(property); } }}>
+        <title>{nameIn(property.title, language)}</title>
+        <circle cx={point.x} cy={point.y} r={selected ? 11 : 7} className="map-property-dot" />
+        {zoom > 2.5 || selected ? <text x={point.x + 10} y={point.y + (index % 2 ? 10 : -8)} className="map-place-label" pointerEvents="none">{nameIn(property.title, language)}</text> : null}
+      </g>
+    );
+  };
+
+  const visiblePropertyMarkers = properties.map((marker, index) => propertyMarker(marker, index));
+  const selectedProperty = propertyId ? PROPERTIES_BY_ID.get(propertyId) : null;
+  const citiesForMap = cityId ? visibleLocations : [];
+  const secondaryPlaces = !cityId ? MAJOR_PLACES : [];
+  const coordsLabel = zoom.toFixed(1).replace(/\.0$/, "");
 
   return (
-    <section className="egypt-map-panel" aria-label={isArabic ? "خريطة تفاعلية تجريبية لمصر" : "Interactive synthetic Egypt map"}>
-      <header className="egypt-map-heading">
-        <div>
-          <h2>{isArabic ? "خريطة المواقع" : "Property locations"}</h2>
-          <p>{isArabic ? "بيانات ومواقع تجريبية توضيحية فقط" : "Illustrative synthetic locations and listings"}</p>
-        </div>
-        <span className="egypt-map-badge">DEMO</span>
-      </header>
-
-      <nav className="egypt-map-breadcrumbs" aria-label={isArabic ? "مسار الخريطة" : "Map navigation"}>
-        <button type="button" onClick={() => chooseBreadcrumb("egypt")} aria-current={!cityId ? "page" : undefined}>{isArabic ? "مصر" : "Egypt"}</button>
-        {cityId && <><span aria-hidden="true">›</span><button type="button" onClick={() => chooseBreadcrumb("city")} aria-current={cityId && !districtId ? "page" : undefined}>{nameIn(currentCity?.name ?? { en: "City", ar: "مدينة" }, language)}</button></>}
-        {districtId && <><span aria-hidden="true">›</span><button type="button" onClick={() => chooseBreadcrumb("district")} aria-current={districtId && !communityId ? "page" : undefined}>{nameIn(currentDistrict?.name ?? { en: "Area", ar: "منطقة" }, language)}</button></>}
-        {communityId && <><span aria-hidden="true">›</span><span aria-current="page">{nameIn(currentCommunity?.name ?? { en: "Community", ar: "مجتمع" }, language)}</span></>}
-        {(cityId || districtId || communityId) && <button className="egypt-map-reset" type="button" onClick={resetMap}>{isArabic ? "عرض الكل" : "Reset"}</button>}
-      </nav>
-
-      <div className="egypt-map-canvas" dir="ltr">
-        <svg
-          className="egypt-map-svg"
-          viewBox={`0 0 ${EGYPT_MAP_VIEWBOX.width} ${EGYPT_MAP_VIEWBOX.height}`}
-          role="group"
-          aria-label={isArabic ? `خريطة مصر، ${title}` : `Map of Egypt, ${title}`}
-        >
+    <section className="egypt-map-panel" aria-label={isArabic ? "خريطة تفاعلية لمصر" : "Interactive Egypt map"}>
+      <div className="egypt-map-viewport" aria-label={isArabic ? "خريطة تفاعلية قابلة للتكبير والتحريك" : "Interactive zoomable, pannable map"}>
+        <svg ref={svgRef} className="egypt-map-svg" viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`} role="group"
+          aria-label={isArabic ? "خريطة مصر والطرق والمناطق" : "Egypt roads and administrative areas"}
+          onWheel={handleWheel} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp}>
           <defs>
-            <linearGradient id="egypt-map-ocean" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#10243a"/><stop offset="1" stopColor="#071321"/></linearGradient>
-            <pattern id="egypt-map-grid" width="36" height="36" patternUnits="userSpaceOnUse"><path d="M36 0H0V36" fill="none" stroke="#9fb8ce" strokeOpacity="0.08" strokeWidth="1"/></pattern>
+            <linearGradient id="map-vignette" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#091523" stopOpacity=".1"/><stop offset="1" stopColor="#06101a" stopOpacity=".22"/></linearGradient>
+            <filter id="map-marker-shadow" x="-100%" y="-100%" width="300%" height="300%"><feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#02070d" floodOpacity=".75"/></filter>
           </defs>
-          <rect width={EGYPT_MAP_VIEWBOX.width} height={EGYPT_MAP_VIEWBOX.height} fill="url(#egypt-map-ocean)" />
-          <rect width={EGYPT_MAP_VIEWBOX.width} height={EGYPT_MAP_VIEWBOX.height} fill="url(#egypt-map-grid)" />
-          <path d={EGYPT_SVG_PATH} fill="#20364c" fillRule="evenodd" stroke="#d6e4f0" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true" />
-          <text x="360" y="45" textAnchor="middle" fill="#b5c8da" fontSize="15" fontWeight="700" letterSpacing="3" aria-hidden="true">EGYPT</text>
-          {visibleLocations.map(locationButton)}
-          {propertyList.map(propertyButton)}
+          <g transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
+            <image className="map-osm-basemap" href={`${PUBLIC_BASE_PATH}/maps/egypt-openstreetmap.svg`} x="0" y="0" width={MAP_WIDTH} height={MAP_HEIGHT} preserveAspectRatio="none" aria-hidden="true" />
+            <rect x="0" y="0" width={MAP_WIDTH} height={MAP_HEIGHT} fill="url(#map-vignette)" pointerEvents="none" />
+            <g className="map-governorates" transform={`scale(${ADMIN_SCALE_X} ${ADMIN_SCALE_Y})`}>
+              {GOVERNORATE_SHAPES.map((region) => {
+                const selected = selectedGovernorateId === region.id || Boolean(regionCityId(region.id) && cityId === regionCityId(region.id));
+                return <path key={region.id} d={region.d} role="button" tabIndex={0}
+                  className={`map-governorate-shape ${selected ? "selected" : ""}`}
+                  aria-label={`${nameIn(region.name, language)} ${isArabic ? "محافظة" : "governorate"}`}
+                  data-governorate-id={region.id}
+                  onClick={(event) => selectGovernorate(region, event.currentTarget)}
+                  onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectGovernorate(region, event.currentTarget); } }}>
+                  <title>{nameIn(region.name, language)}</title>
+                </path>;
+              })}
+            </g>
+            {!cityId ? secondaryPlaces.map(placeLabel) : null}
+            {citiesForMap.map(locationMarker)}
+            {cityId && !districtId ? districts.map(locationMarker) : null}
+            {districtId && !communityId ? communities.map(locationMarker) : null}
+            {communityId ? visiblePropertyMarkers : null}
+          </g>
         </svg>
+
+        <div className="map-control-stack" role="group" aria-label={isArabic ? "عناصر التحكم في الخريطة" : "Map controls"}>
+          <button type="button" aria-label={isArabic ? "تكبير الخريطة" : "Zoom in"} title={isArabic ? "تكبير" : "Zoom in"} onClick={() => zoomBy(0.35)}>+</button>
+          <span aria-live="polite">{coordsLabel}×</span>
+          <button type="button" aria-label={isArabic ? "تصغير الخريطة" : "Zoom out"} title={isArabic ? "تصغير" : "Zoom out"} onClick={() => zoomBy(-0.35)}>−</button>
+          <button type="button" aria-label={isArabic ? "إعادة ضبط عرض الخريطة" : "Reset map view"} title={isArabic ? "إعادة ضبط" : "Reset view"} onClick={resetMap}>⌖</button>
+        </div>
+
+        {currentName ? <div className="map-focus-label" aria-live="polite"><span aria-hidden="true">⌖</span>{currentName}</div> : null}
+        {selectedProperty ? <div className="map-focus-property" aria-live="polite"><strong>{nameIn(selectedProperty.title, language)}</strong><span>{selectedProperty.areaSqm} m² · {selectedProperty.bedrooms} {isArabic ? "غرف" : "beds"}</span><small>{isArabic ? "وحدة توضيحية" : "Illustrative sample unit"}</small></div> : null}
+        <div className="map-synthetic-legend"><span aria-hidden="true" />{isArabic ? "المخزون العقاري توضيحي" : "Illustrative property inventory"}</div>
+        <a className="map-osm-credit" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" aria-label={isArabic ? "مساهمو OpenStreetMap، رخصة ODbL" : "OpenStreetMap contributors, ODbL"}>© OpenStreetMap</a>
       </div>
-
-      <div className="egypt-map-summary">
-        <strong>{title}</strong>
-        <span>{!cityId ? (isArabic ? "اختر مدينة لاستكشاف المناطق" : "Choose a city to explore its areas") : !districtId ? (isArabic ? `${districts.length} مناطق · ${currentCity?.propertyCount ?? 0} وحدات تجريبية` : `${districts.length} areas · ${currentCity?.propertyCount ?? 0} synthetic properties`) : !communityId ? (isArabic ? `${communities.length} مجتمعات · ${currentDistrict?.propertyCount ?? 0} وحدات تجريبية` : `${communities.length} communities · ${currentDistrict?.propertyCount ?? 0} synthetic properties`) : (isArabic ? `${propertyList.length} وحدات تجريبية` : `${propertyList.length} synthetic properties`)}</span>
-      </div>
-
-      {visibleLocations.length > 0 && (
-        <div className="egypt-map-location-list" aria-label={isArabic ? "المواقع المتاحة" : "Available locations"}>
-          {visibleLocations.map((marker) => (
-            <button key={marker.id} type="button" onClick={() => selectLocation(marker)}>
-              <span>{nameIn(marker.name, language)}</span>
-              <small>{marker.propertyCount} {isArabic ? "وحدات" : "listings"}</small>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {propertyList.length > 0 && (
-        <div className="egypt-map-property-list" role="list" aria-label={isArabic ? "وحدات تجريبية" : "Synthetic sample properties"}>
-          {propertyList.map((property) => (
-            <div key={property.id} role="listitem">
-              <button type="button" onClick={() => selectProperty(property)} aria-pressed={propertyId === property.id}>
-                <span><strong>{nameIn(property.title, language)}</strong><small>{property.bedrooms} {isArabic ? "غرف" : "beds"} · {property.areaSqm} m²</small></span>
-                <b>{formatEgp(property.priceEgp, language)}</b>
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {selectedProperty && (
-        <div className="egypt-map-selected-property" aria-live="polite">
-          <strong>{nameIn(selectedProperty.title, language)}</strong>
-          <span>{nameIn(selectedProperty.community.name, language)} · {selectedProperty.areaSqm} m² · {formatEgp(selectedProperty.priceEgp, language)}</span>
-          <small>{isArabic ? "بيانات تجريبية وليست عرضاً حقيقياً." : "Synthetic sample only; not a live offer."}</small>
-        </div>
-      )}
-
-      <p className="egypt-map-notice">{nameIn(INVENTORY_NOTICE, language)}</p>
-      <footer className="egypt-map-attribution">
-        {isArabic ? "الحدود الجغرافية: Natural Earth · رخصة CC0 1.0" : `Boundary: ${EGYPT_MAP_SOURCE.name} · ${EGYPT_MAP_SOURCE.license}`}
-      </footer>
     </section>
   );
 };

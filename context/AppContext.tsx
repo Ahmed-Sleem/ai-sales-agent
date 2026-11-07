@@ -6,6 +6,7 @@
  */
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { GlobalModals } from "../components/GlobalModals";
+import type { VizDirective } from "../lib/agentTools";
 
 export interface DocumentDTO {
   id: string;
@@ -19,6 +20,19 @@ export interface DocumentDTO {
   chunk_count: number;
 }
 
+export interface MapSelection {
+  id: string;
+  name: string;
+  detail: string;
+  level?: "country" | "governorate" | "city" | "district" | "community" | "property";
+  coordinates?: { latitude: number; longitude: number };
+}
+
+export interface MapDirectiveUpdate {
+  revision: number;
+  directive: VizDirective;
+}
+
 export interface ConversationTurn {
   id: string;
   role: "user" | "assistant";
@@ -26,6 +40,7 @@ export interface ConversationTurn {
   timestamp: string;
   citations?: { code: string; title: string }[];
   demoPhotos?: { src: string; alt: string; synthetic: true }[];
+  mapSelection?: MapSelection;
 }
 
 export interface Conversation {
@@ -72,8 +87,8 @@ interface AppContextType {
   getActiveAgentKey: () => { key: string; provider: string; model: string } | null;
   isSettingsOpen: boolean;
   setIsSettingsOpen: (open: boolean) => void;
-  workspaceView: "chat" | "dashboard";
-  setWorkspaceView: React.Dispatch<React.SetStateAction<"chat" | "dashboard">>;
+  workspaceView: "map" | "analytics";
+  setWorkspaceView: React.Dispatch<React.SetStateAction<"map" | "analytics">>;
   isStaticDemo: boolean;
   localApiKeyDataPresent: boolean;
   clearLocalApiKeyData: () => void;
@@ -81,8 +96,10 @@ interface AppContextType {
   setDemoMode: React.Dispatch<React.SetStateAction<boolean>>;
   theme: "dark" | "light";
   setTheme: (theme: "dark" | "light") => void;
-  vizSelection: { id: string; name: string; detail: string } | null;
-  setVizSelection: React.Dispatch<React.SetStateAction<{ id: string; name: string; detail: string } | null>>;
+  vizSelection: MapSelection | null;
+  setVizSelection: React.Dispatch<React.SetStateAction<MapSelection | null>>;
+  mapDirective: MapDirectiveUpdate | null;
+  publishMapDirective: (directive: VizDirective) => void;
   conversations: Conversation[];
   activeConversationId: string | null;
   startNewConversation: () => void;
@@ -125,12 +142,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [activeApiKeyId, setActiveApiKeyId] = useState<string | null>(null);
   const [vaultError, setVaultError] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
-  const [workspaceView, setWorkspaceView] = useState<"chat" | "dashboard">("chat");
+  const [workspaceView, setWorkspaceView] = useState<"map" | "analytics">("map");
   const [isStaticDemo, setIsStaticDemo] = useState<boolean>(true);
   const [localApiKeyDataPresent, setLocalApiKeyDataPresent] = useState<boolean>(false);
   const [demoMode, setDemoMode] = useState<boolean>(true);
   const [theme, setThemeState] = useState<"dark" | "light">("dark");
-  const [vizSelection, setVizSelection] = useState<{ id: string; name: string; detail: string } | null>(null);
+  const [vizSelection, setVizSelection] = useState<MapSelection | null>(null);
+  const [mapDirective, setMapDirective] = useState<MapDirectiveUpdate | null>(null);
+  const mapDirectiveRevision = useRef(0);
   const [conversations, setConversations] = useState<Conversation[]>([
     {
       id: "default_conv",
@@ -383,6 +402,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [conversations, activeConversationId, isReady, deviceId]);
 
+  const publishMapDirective = (directive: VizDirective) => {
+    mapDirectiveRevision.current += 1;
+    setMapDirective({ revision: mapDirectiveRevision.current, directive });
+  };
+
   const setLanguage = (lang: "ar" | "en") => {
     setLanguageState(lang);
     localStorage.setItem("gpr_language", lang);
@@ -498,7 +522,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         clearLocalApiKeyData,
         demoMode,
         setDemoMode,
-        theme, setTheme, vizSelection, setVizSelection,
+        theme, setTheme, vizSelection, setVizSelection, mapDirective, publishMapDirective,
         conversations,
         activeConversationId,
         startNewConversation,

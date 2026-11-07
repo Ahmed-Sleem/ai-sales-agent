@@ -13,8 +13,9 @@ The demo opens in Arabic for visitors without a saved language preference, using
 - Use the single chat composer to answer the location, budget, and area questions one at a time.
 - Sara searches the bundled sample catalogue and shows at most one closest match, clearly labelled as illustrative. Location, price, area, and payment preference are disclosed in stages. Cash selection does not reveal installment-plan terms.
 - After reviewing a sample property, you can confirm, explore another option, give a reason it is unsuitable, or request synthetic example photos.
-- The toolbar switches between the same chat and the analytics dashboard. The chat stays mounted when the dashboard is open and returns with its transcript intact.
-- The right-side Egypt map is bundled SVG data and works offline; it is not a live map or a source of real inventory.
+- The toolbar switches the right-side panel between the map and analytics. The map is replaced in that panel while Analysis is open; the chat/composer stays visible and the transcript remains intact.
+- The detailed Egypt road map is bundled OpenStreetMap SVG data with an on-map contributor/ODbL credit. Bilingual governorate outlines, place labels, map zoom/pan, selection focus, and catalogue drill-down are local and work offline.
+- Selecting a mapped place attaches it to the user’s chat message; live-agent tool directives can also focus and highlight map results. The illustrated property inventory is explicitly labeled and is not live market data.
 - Use “Start another search” in the chat after a demo flow is complete to restart in place.
 
 ## Static-hosting and API-key safety
@@ -33,4 +34,4 @@ npm run verify
 
 ## Data and map attribution
 
-Analytics and inventory are deterministic fixtures for demonstration and testing. The Egypt outline is based on the bundled Natural Earth administrative boundary data (`data/egypt.geo.json`); the in-app map includes its attribution. No map tiles or external geocoding service are used.
+Analytics and inventory are deterministic fixtures for demonstration and testing. The road basemap is the bundled OpenStreetMap SVG at `public/maps/egypt-openstreetmap.svg`; the app credits OpenStreetMap contributors and links to the ODbL notice inside the map. Governorate paths come from the user-supplied map archive and are bundled in `data/egyptGovernorates.json`. Natural Earth geometry remains a local geographic reference for catalogue projection in `data/egypt.geo.json`. No tile server or external geocoder is used at runtime.

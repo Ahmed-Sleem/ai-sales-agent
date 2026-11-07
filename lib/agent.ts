@@ -20,7 +20,7 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 export async function runAgent(opts: {
   creds: AgentCreds; message: string; history: { role: string; content: string }[];
-  maxCycles: number; vizSelection?: { name: string; detail: string } | null; events: AgentEvents;
+  maxCycles: number; mapSelection?: { id: string; name: string; detail: string; level?: string; coordinates?: { latitude: number; longitude: number } } | null; events: AgentEvents;
 }): Promise<string> {
   const { creds, events } = opts;
   const base = BASE_URLS[creds.provider] || BASE_URLS.deepseek;
@@ -28,8 +28,10 @@ export async function runAgent(opts: {
     { role: "system", content: AGENT_SYSTEM_PROMPT },
     ...opts.history.slice(-6),
   ];
-  if (opts.vizSelection) messages.push({ role: "system", content: `The user has selected on the map: ${opts.vizSelection.name} (${opts.vizSelection.detail}). Treat it as the current focus unless they ask for something else.` });
-  messages.push({ role: "user", content: opts.message });
+  const mapContext = opts.mapSelection
+    ? `\n\n[Map selection attached to this user message: ${opts.mapSelection.name} (${opts.mapSelection.detail}; id=${opts.mapSelection.id}${opts.mapSelection.level ? `; level=${opts.mapSelection.level}` : ""}${opts.mapSelection.coordinates ? `; latitude=${opts.mapSelection.coordinates.latitude}; longitude=${opts.mapSelection.coordinates.longitude}` : ""}). Treat this as the user's selected place/property unless they say otherwise.]`
+    : "";
+  messages.push({ role: "user", content: `${opts.message}${mapContext}` });
 
   const callModel = async (withTools: boolean) => {
     const res = await fetch(`${base}/chat/completions`, {

@@ -60,8 +60,8 @@ export const AnalyticsDashboard: React.FC = () => {
           <h2>{isArabic ? "لوحة التحليلات" : "Demo analytics"}</h2>
           <p>{isArabic ? "ملخص نشاط توضيحي للتجربة — لا يحتوي على بيانات عملاء حقيقية." : "Illustrative activity summary for the demo — no real client data."}</p>
         </div>
-        <button className="analytics-back-button" type="button" onClick={() => setWorkspaceView("chat")}>
-          <span aria-hidden="true">←</span> {isArabic ? "العودة إلى المحادثة" : "Back to chat"}
+        <button className="analytics-back-button" type="button" onClick={() => setWorkspaceView("map")}>
+          <span aria-hidden="true">←</span> {isArabic ? "العودة إلى الخريطة" : "Back to map"}
         </button>
       </header>
 

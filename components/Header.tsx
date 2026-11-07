@@ -21,6 +21,18 @@ export const Header: React.FC = () => {
     if (deviceId) localStorage.setItem(`gpr_layout_${deviceId}_right_closed`, String(closed));
   };
 
+  const toggleWorkspacePanel = () => {
+    if (workspaceView === "analytics") {
+      setWorkspaceView("map");
+      return;
+    }
+    const mainWindow = document.getElementById("mainWindow");
+    mainWindow?.classList.remove("right-panel-closed");
+    setIsRightPanelClosed(false);
+    if (deviceId) localStorage.setItem(`gpr_layout_${deviceId}_right_closed`, "false");
+    setWorkspaceView("analytics");
+  };
+
   return (
     <header className="app-header" id="appHeader">
       <div className="header-tools" role="toolbar" aria-label={language === "ar" ? "أدوات مساحة العمل" : "Workspace tools"}>
@@ -39,13 +51,13 @@ export const Header: React.FC = () => {
         </button>
 
         <button
-          className={`tool-btn ${workspaceView === "dashboard" ? "active-closed" : ""}`}
+          className={`tool-btn ${workspaceView === "analytics" ? "active-closed" : ""}`}
           id="dashboardToggleBtn"
           type="button"
-          onClick={() => setWorkspaceView(workspaceView === "chat" ? "dashboard" : "chat")}
-          aria-label={workspaceView === "chat" ? (language === "ar" ? "فتح لوحة التحليلات" : "Open analytics dashboard") : (language === "ar" ? "العودة إلى المحادثة" : "Return to chat")}
-          aria-pressed={workspaceView === "dashboard"}
-          title={workspaceView === "chat" ? (language === "ar" ? "لوحة التحليلات التجريبية" : "Demo analytics dashboard") : (language === "ar" ? "العودة إلى المحادثة" : "Return to chat")}
+          onClick={toggleWorkspacePanel}
+          aria-label={workspaceView === "map" ? (language === "ar" ? "فتح لوحة التحليلات" : "Open analytics dashboard") : (language === "ar" ? "العودة إلى الخريطة" : "Return to map")}
+          aria-pressed={workspaceView === "analytics"}
+          title={workspaceView === "map" ? (language === "ar" ? "فتح التحليلات" : "Open analytics") : (language === "ar" ? "عرض الخريطة" : "Show map")}
         >
           <svg viewBox="0 0 24 24" style={{ width: "16px", height: "16px" }} aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 19V5m0 14h17M8 15V9m5 6V5m5 10v-4" />
@@ -72,11 +84,15 @@ export const Header: React.FC = () => {
           id="panelToggleBtn"
           type="button"
           onClick={toggleRightPanel}
-          aria-label={language === "ar" ? "تبديل خريطة مصر" : "Toggle Egypt map"}
+          aria-label={isRightPanelClosed
+            ? (workspaceView === "map" ? (language === "ar" ? "إظهار خريطة مصر" : "Show map panel") : (language === "ar" ? "إظهار التحليلات" : "Show analytics panel"))
+            : (workspaceView === "map" ? (language === "ar" ? "إخفاء خريطة مصر" : "Hide map panel") : (language === "ar" ? "إخفاء التحليلات" : "Hide analytics panel"))}
           aria-pressed={isRightPanelClosed}
           title={isRightPanelClosed
-            ? (language === "ar" ? "إظهار الخريطة" : "Show map")
-            : (language === "ar" ? "إخفاء الخريطة" : "Hide map")}
+            ? (language === "ar" ? "إظهار اللوحة" : "Show data panel")
+            : workspaceView === "map"
+              ? (language === "ar" ? "إخفاء الخريطة" : "Hide map")
+              : (language === "ar" ? "إخفاء التحليلات" : "Hide analytics")}
         >
           <svg viewBox="0 0 24 24" style={{ width: "16px", height: "16px" }} aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 6.5 8.5 4l7 2.5L21 4v13.5L15.5 20l-7-2.5L3 20V6.5Z" />

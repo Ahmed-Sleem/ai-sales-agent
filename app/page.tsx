@@ -77,7 +77,7 @@ export default function Home() {
   };
 
   return (
-    <main className="main-window single-chat-layout" id="mainWindow">
+    <main className={`main-window single-chat-layout ${workspaceView === "analytics" ? "dashboard-panel-open" : ""}`} id="mainWindow">
       <NightSky />
       <Header />
 
@@ -88,12 +88,7 @@ export default function Home() {
 
       {/* Center Panel — Chat Workspace (below the logo) */}
       <div className="panel panel-center" id="centerPanel" role="region" aria-label="AI chat workspace">
-        <div className="center-view-stack">
-          <div className="center-chat-view" hidden={workspaceView === "dashboard"} aria-hidden={workspaceView === "dashboard"}>
-            <ChatPanel />
-          </div>
-          {workspaceView === "dashboard" ? <AnalyticsDashboard /> : null}
-        </div>
+        <ChatPanel />
       </div>
 
       {/* Resize Handle (Row 1 / Col 4) */}
@@ -102,13 +97,18 @@ export default function Home() {
         data-target="right"
         role="separator"
         aria-orientation="vertical"
-        aria-label="Resize document panel"
+        aria-label={language === "ar" ? "تغيير عرض لوحة الخريطة والتحليلات" : "Resize map and analytics panel"}
         onMouseDown={startResize}
       />
 
       {/* Right Panel — static-friendly data visualization */}
-      <div className="panel panel-right" id="rightPanel" role="complementary" aria-label="Egypt map panel">
-        <DataPanel />
+      <div className="panel panel-right" id="rightPanel" role="complementary" aria-label={workspaceView === "map" ? (language === "ar" ? "لوحة خريطة مصر" : "Egypt map panel") : (language === "ar" ? "لوحة التحليلات الاصطناعية" : "Synthetic analytics panel")}>
+        <div className="right-panel-map-view" hidden={workspaceView !== "map"} aria-hidden={workspaceView !== "map"}>
+          <DataPanel />
+        </div>
+        <div className="right-panel-analytics-view" hidden={workspaceView !== "analytics"} aria-hidden={workspaceView !== "analytics"}>
+          <AnalyticsDashboard />
+        </div>
       </div>
     </main>
   );

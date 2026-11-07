@@ -18,5 +18,7 @@ test-results/
 id_rsa
 id_ed25519
 _working_docs/
+/maps.zip
+/map-source/
 **/thinking/
 *.tsbuildinfo

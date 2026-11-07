@@ -9,7 +9,7 @@
 
 | # | PDF requirement | Current implementation and evidence | Status |
 |---|---|---|---|
-| 1 | Sara is a sales manager; start with the specified Arabic greeting | New visitors default to Arabic and receive the PDF greeting verbatim. The interface supports English, whose greeting also names Sara as sales manager. Unit and browser checks cover both. | **PASS** |
+| 1 | Sara is a sales manager from X (company name); start with the specified Arabic greeting | Sara is identified as the sales manager and new visitors receive the Arabic greeting verbatim. The `X (company name)` affiliation is deliberately not invented because the owner has not supplied the real company name. | **PARTIAL — company name pending** |
 | 2 | Ask location, budget, then area, one question at a time | The qualification state machine asks only the first unanswered field in location → budget → area order, can retain volunteered answers, and clarifies invalid input. Unit and live-chat E2E cover the flow. | **PASS** |
 | 3 | Present only the closest property to the visitor’s preferences | Search uses the deterministic sample catalogue and presents at most one exact or transparently labelled nearest match. Exact and relaxed/closest paths have unit and browser coverage. | **PASS** |
 | 4 | Disclose location, price, and area one detail at a time | The property-disclosure state machine gates each stage behind the visitor’s reply. E2E verifies location/price/area progression. | **PASS** |
@@ -19,10 +19,21 @@
 | 8 | Show dummy property photos | The selected sample listing can return its bundled illustrative photos in the chat with synthetic-photo captions and localized alt text. E2E checks the image renders. | **PASS** |
 | 9 | Remove the thinking banner from the GUI | Thinking/retrieval status log and its settings toggle were removed. No user-facing chain-of-thought panel is shown; the ordinary transient typing indicator remains. | **PASS** |
 | 10 | Remove cycle count from the GUI | No retrieval-cycle control or count is exposed. The provider-side limit remains an internal fixed value. | **PASS** |
-| 11 | Minimalistic yet impressive GUI | The conversations sidebar, history controls, and 3D visualization are gone. The interface has one chat, compact toolbar, optional map, and in-place dashboard; responsive/mobile and accessibility smoke tests pass. “Impressive” is subjective and no separate owner screenshot sign-off is recorded. | **IMPLEMENTED — owner visual sign-off remains subjective** |
-| 12 | Use a 2D Egypt map instead of a 3D globe/visualization | The right panel uses bundled Egypt SVG geometry with catalogue-derived markers, accessible navigation, selection details, and offline interaction; external map/tile requests are not used. Map data attribution is documented in the app and `DEMO_GUIDE.md`; the root README remains URL-only as requested. | **PASS** |
-| 13 | Dashboard with client/message counts by day, week, and month | The dashboard has day/week/month periods and synthetic counts for clients, conversations, and messages. The selected period drives the metrics and chart data. | **PASS** |
+| 11 | Minimalistic yet impressive GUI | The conversations sidebar, history controls, and 3D visualization are gone. The interface has one chat, compact toolbar, detailed map, and a dashboard that replaces the map in its right-side panel; responsive/mobile and accessibility smoke tests pass. “Impressive” is subjective and no separate owner screenshot sign-off is recorded. | **IMPLEMENTED — owner visual sign-off remains subjective** |
+| 12 | Use a 2D Egypt map instead of a 3D globe/visualization | The right panel now uses a detailed, bundled OpenStreetMap road basemap with bilingual governorate outlines, selectable city/area/property markers, zoom/pan, selection focus, and offline interaction. An unobtrusive OpenStreetMap contributor/ODbL credit stays inside the map. No external tile requests are used. | **PASS** |
+| 13 | Dashboard with client/message counts by day, week, and month | The dashboard has day/week/month periods and synthetic counts for clients, conversations, and messages. It replaces the map inside the right-side panel while leaving the chat available. The selected period drives the metrics and chart data. | **PASS** |
 | 14 | Hot properties, hot locations, and useful graphs | The dashboard includes message and lead-stage charts plus ranked synthetic property and location activity. The synthetic-data notice is visible; chart/ranking behavior is covered by unit and E2E tests. | **PASS** |
+
+## PDF requirements still outstanding
+
+1. **Company affiliation:** the PDF says Sara is a sales manager from “X (company name).” The real company name has not been supplied, and the project instruction is not to invent one. Sara’s role is implemented; the company-name part remains unfilled until the owner provides it.
+2. **Subjective visual approval:** the requested minimalistic-yet-impressive GUI is implemented, but that subjective criterion still needs the owner’s visual sign-off.
+
+All other concrete behavior listed in the one-page PDF is implemented and verified.
+
+## Additional map acceptance (requested separately from the PDF)
+
+Map selection is preserved as structured metadata on the user turn and included in the current model-bound message context; tool-generated `VizDirective` drill/focus/highlight updates are delivered to the map panel. Analysis replaces the map in that same right-side panel, while the single chat composer and transcript remain visible. E2E/unit checks cover attachment and map-panel behavior.
 
 ## Static public-hosting safety (additional to the PDF checklist)
 
@@ -30,4 +41,4 @@ GitHub Pages is static and does not provide this app a secure backend or API-key
 
 ## Verification evidence
 
-The 2026-11-07 grouped `npm run verify` completed successfully: typecheck passed; lint had 12 warnings and no errors; all 116 unit tests passed; secret scan clean; dependency audit found 0 vulnerabilities; static production build passed; all 9 Playwright E2E tests passed, including dashboard periods, no-key static safety and legacy-key cleanup, exact default Arabic greeting, single-chat preservation, offline SVG map, staged disclosure, photos, rejection reasons, accessibility smoke, and mobile layout.
+The 2026-11-07 map-refresh grouped `npm run verify` completed successfully: typecheck passed; lint had 12 warnings and no errors; all 118 unit tests passed; secret scan clean; dependency audit found 0 vulnerabilities; production static build passed; all 9 Playwright E2E tests passed. Coverage includes dashboard replacement in the right panel, map selection attachments and zoom/drill behavior, no-key static safety, exact Arabic greeting, staged disclosure, synthetic photos, rejection reasons, accessibility smoke, and mobile layout. A separate `NEXT_PUBLIC_BASE_PATH=/ai-sales-agent npm run build` also passed for the Pages URL.

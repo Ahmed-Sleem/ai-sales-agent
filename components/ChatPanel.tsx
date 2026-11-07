@@ -18,7 +18,7 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 export const ChatPanel: React.FC = () => {
   const {
     conversations, activeConversationId, addTurnToConversation, startNewConversation,
-    savedApiKeys, activeApiKeyId, language, setIsSettingsOpen, t, vizSelection, setVizSelection, getActiveAgentKey, demoMode, isStaticDemo
+    savedApiKeys, activeApiKeyId, language, setIsSettingsOpen, t, vizSelection, setVizSelection, getActiveAgentKey, demoMode, isStaticDemo, publishMapDirective
   } = useApp();
 
   const [inputMessage, setInputMessage] = useState("");
@@ -149,11 +149,13 @@ export const ChatPanel: React.FC = () => {
     }
     setInputMessage("");
 
+    const sentMapSelection = vizSelection ?? undefined;
     const userTurn: ConversationTurn = {
       id: createTurnId("turn_u"),
       role: "user",
       content: userText,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      ...(sentMapSelection ? { mapSelection: sentMapSelection } : {}),
     };
     addTurnToConversation(userTurn);
 
@@ -199,11 +201,17 @@ export const ChatPanel: React.FC = () => {
       const answer = await runAgent({
         creds,
         message: userText,
-        history: turns.slice(-6).map(turnItem => ({ role: turnItem.role, content: turnItem.content })),
+        history: turns.slice(-6).map(turnItem => ({
+          role: turnItem.role,
+          content: turnItem.mapSelection
+            ? `${turnItem.content}\n\n[Map selection attached: ${turnItem.mapSelection.name} (${turnItem.mapSelection.detail})]`
+            : turnItem.content,
+        })),
         maxCycles: 3,
-        vizSelection: vizSelection ? { name: vizSelection.name, detail: vizSelection.detail } : null,
+        mapSelection: sentMapSelection ?? null,
         events: {
           onToken: (full) => { partialText = full; streamingContentRef.current = full; scheduleStreamingPaint(); },
+          onViz: publishMapDirective,
         },
       });
       partialText = answer;
@@ -374,6 +382,11 @@ export const ChatPanel: React.FC = () => {
               </span>
               <div className="content">
                 {turn.role === "assistant" ? renderContentWithCitations(turn.content) : turn.content}
+                {turn.role === "user" && turn.mapSelection ? (
+                  <span className="map-selection-attachment" data-map-selection-id={turn.mapSelection.id}>
+                    <span aria-hidden="true">⌖</span> {turn.mapSelection.name}
+                  </span>
+                ) : null}
                 {turn.role === "assistant" ? turn.demoPhotos?.map((photo) => (
                   <figure className="demo-photo-in-bubble" key={`${turn.id}_${photo.src}`}>
                     <Image src={`${PUBLIC_BASE_PATH}${photo.src}`} alt={photo.alt} width={600} height={448} unoptimized sizes="(max-width: 640px) 85vw, 280px" />

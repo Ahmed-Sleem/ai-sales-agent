@@ -41,6 +41,10 @@ test('synthetic analytics dashboard switches periods and returns to the same cha
   await page.locator('#dashboardToggleBtn').click();
   const dashboard = page.getByRole('region', { name: 'Synthetic demo analytics dashboard' });
   await expect(dashboard).toBeVisible();
+  await expect(page.locator('#rightPanel .egypt-map-svg')).toBeHidden();
+  await expect(page.locator('#rightPanel .analytics-dashboard')).toBeVisible();
+  await expect(page.locator('#chatInput')).toBeVisible();
+  await expect(page.locator('#chatInput')).toHaveCount(1);
   await expect(dashboard.getByRole('button', { name: 'Week' })).toHaveAttribute('aria-pressed', 'true');
   await expect(dashboard.locator('.analytics-kpi')).toHaveCount(4);
   await expect(dashboard.getByRole('heading', { name: 'Hot properties' })).toBeVisible();
@@ -53,7 +57,10 @@ test('synthetic analytics dashboard switches periods and returns to the same cha
   await expect(dashboard.locator('.analytics-kpi').first()).toContainText('3');
   await dashboard.getByRole('button', { name: 'Month' }).click();
   await expect(dashboard.getByRole('button', { name: 'Month' })).toHaveAttribute('aria-pressed', 'true');
-  await dashboard.getByRole('button', { name: 'Back to chat' }).click();
+  await expect(page.locator('#chatInput')).toBeVisible();
+  await expect(page.locator('#chatInput')).toHaveCount(1);
+  await dashboard.getByRole('button', { name: 'Back to map' }).click();
+  await expect(page.locator('.egypt-map-svg')).toBeVisible();
   await expect(page.locator('#chatInput')).toBeVisible();
   await expect(page.locator('#chatInput')).toHaveCount(1);
   await expect(page.locator('#sendButton')).toHaveCount(1);
@@ -76,19 +83,46 @@ test('static demo explains and can clear legacy browser-local API-key data', asy
   await expect(page.getByTitle('Close Settings')).toBeVisible();
 });
 
-test('the local SVG Egypt map renders and drills into synthetic listings offline', async ({ page }) => {
+test('the bundled OSM map supports admin-region selection, zoom, and chat attachments offline', async ({ page }) => {
   const remoteMapRequests: string[] = [];
   page.on('request', (request) => {
-    if (/tile|mapbox|google.*maps|openstreetmap/i.test(request.url())) remoteMapRequests.push(request.url());
+    const requested = new URL(request.url());
+    if (requested.origin !== new URL(page.url() || 'http://localhost').origin && /tile|mapbox|google.*maps|openstreetmap/i.test(request.url())) remoteMapRequests.push(request.url());
   });
   await page.goto('/');
   const map = page.locator('.egypt-map-svg');
   await expect(map).toBeVisible();
-  await expect(map.locator('path').last()).toBeVisible();
-  await expect(map.locator('.egypt-map-marker')).not.toHaveCount(0);
-  await page.getByRole('button', { name: /^Cairo, \d+ synthetic demo properties$/i }).click();
-  await expect(page.getByRole('navigation', { name: 'Map navigation' }).getByRole('button', { name: 'Cairo', exact: true })).toBeVisible();
-  await expect(map.getByRole('button', { name: /^New Cairo, \d+ synthetic demo properties$/i })).toBeVisible();
+  await expect(map.locator('.map-osm-basemap')).toHaveAttribute('href', /egypt-openstreetmap\.svg$/);
+  await expect(map.locator('.map-governorate-shape')).toHaveCount(29);
+  await expect(page.getByRole('link', { name: /OpenStreetMap contributors/i })).toBeVisible();
+  await expect(page.locator('.map-synthetic-legend')).toContainText('Illustrative property inventory');
+  const portSaidRegion = map.locator('.map-governorate-shape[data-governorate-id="EG-PTS"]');
+  await portSaidRegion.press('Enter');
+  await expect(portSaidRegion).toHaveClass(/selected/);
+  await expect(page.locator('#centerPanel').getByText(/Selected on map:/)).toContainText('Port Said');
+  await page.getByRole('button', { name: 'Reset map view' }).click();
+
+  const zoom = page.locator('.map-control-stack span');
+  await expect(zoom).toHaveText('1×');
+  await page.getByRole('button', { name: 'Zoom in' }).click();
+  await expect(zoom).not.toHaveText('1×');
+  const transformedMap = map.locator('g[transform^="translate("]');
+  const beforePan = await transformedMap.getAttribute('transform');
+  const mapBounds = await map.boundingBox();
+  if (!mapBounds) throw new Error('Map svg has no rendered bounds');
+  await page.mouse.move(mapBounds.x + mapBounds.width * 0.72, mapBounds.y + mapBounds.height * 0.72);
+  await page.mouse.down();
+  await page.mouse.move(mapBounds.x + mapBounds.width * 0.76, mapBounds.y + mapBounds.height * 0.75);
+  await page.mouse.up();
+  await expect(transformedMap).not.toHaveAttribute('transform', beforePan ?? '');
+  await page.getByRole('button', { name: 'Reset map view' }).click();
+  await page.locator('.map-place[data-map-location-id="cairo"] circle.map-place-dot').click();
+  await expect(page.locator('.map-focus-label')).toContainText('Cairo');
+  await expect(map.locator('.map-cluster[data-map-location-id^="district:"]')).not.toHaveCount(0);
+
+  await page.locator('#chatInput').fill('Tell me about this area');
+  await page.locator('#sendButton').click();
+  await expect(page.locator('.map-selection-attachment[data-map-selection-id="city:cairo"]')).toBeVisible();
   expect(remoteMapRequests).toEqual([]);
 });
 
@@ -167,7 +201,7 @@ test('public static demo stays no-key and uses the existing feed and composer', 
   await expect(chat.getByText(/main reason this property is not suitable/i)).toBeVisible();
   await quickReplies.getByRole('button', { name: 'price', exact: true }).click();
   await expect(chat.getByText(/nearest other sample property is Apartment 01/i)).toBeVisible();
-  await expect(chat.getByText(/It’s in .*Would you like to hear the price/i)).toBeVisible();
+  await expect(chat.getByText(/It’s in .*Would you like to hear the price/i).last()).toBeVisible();
   const chatAccessibility = await new AxeBuilder({ page }).include('#centerPanel').analyze();
   expect(chatAccessibility.violations).toEqual([]);
   expect(aiProviderRequests).toEqual([]);
