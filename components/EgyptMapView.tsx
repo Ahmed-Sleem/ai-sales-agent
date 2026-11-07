@@ -73,10 +73,12 @@ export const EgyptMapView: React.FC = () => {
   const [highlightedIds, setHighlightedIds] = useState<readonly string[]>([]);
   const [shortlistIds, setShortlistIds] = useState<readonly string[]>([]);
   const [rejectedIds, setRejectedIds] = useState<readonly string[]>([]);
-  const [view, setView] = useState({ zoom: 1, pan: { x: 0, y: 0 } });
-  const zoom = view.zoom;
-  const pan = view.pan;
-  const viewRef = useRef(view);
+  const [zoom, setZoom] = useState(1);
+  const initialView = { zoom: 1, pan: { x: 0, y: 0 } };
+  const viewRef = useRef(initialView);
+  const targetViewRef = useRef(initialView);
+  const zoomLabelRef = useRef("1");
+  const labelsVisibleRef = useRef(false);
   const animationFrameRef = useRef<number | null>(null);
   const pointerRef = useRef<{ id: number; x: number; y: number; panX: number; panY: number; moved: boolean } | null>(null);
   const suppressClickRef = useRef(false);
@@ -93,41 +95,59 @@ export const EgyptMapView: React.FC = () => {
     marker.cityId === cityId && (!districtId || marker.districtId === districtId) && (!communityId || marker.communityId === communityId),
   );
 
-  const transitionView = useCallback((targetZoom: number, targetPan: { x: number; y: number }, duration = 720) => {
-    const nextZoom = Math.max(1, Math.min(7, targetZoom));
-    const target = { zoom: nextZoom, pan: targetPan };
-    if (animationFrameRef.current !== null) window.cancelAnimationFrame(animationFrameRef.current);
-    animationFrameRef.current = null;
-    const from = viewRef.current;
+  const transitionView = useCallback((targetZoom: number, targetPan: { x: number; y: number }) => {
+    const target = { zoom: Math.max(1, Math.min(7, targetZoom)), pan: targetPan };
+    targetViewRef.current = target;
+    const nextLabel = target.zoom.toFixed(1).replace(/\.0$/, "");
+    const nextLabelsVisible = target.zoom > 1.22;
+    if (nextLabel !== zoomLabelRef.current || nextLabelsVisible !== labelsVisibleRef.current) {
+      zoomLabelRef.current = nextLabel;
+      labelsVisibleRef.current = nextLabelsVisible;
+      setZoom(target.zoom);
+    }
+    const paint = (current: typeof target) => {
+      const svg = svgRef.current;
+      if (!svg) return;
+      // Transform the whole SVG as a compositor layer; changing an inner SVG group
+      // forces the detailed map to repaint on every frame and feels sluggish.
+      const x = current.pan.x * svg.clientWidth / MAP_WIDTH;
+      const y = current.pan.y * svg.clientHeight / MAP_HEIGHT;
+      svg.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${current.zoom})`;
+    };
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-    if (duration <= 0 || reducedMotion) {
+    if (reducedMotion) {
+      if (animationFrameRef.current !== null) window.cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
       viewRef.current = target;
-      setView(target);
+      paint(target);
       return;
     }
-    let startedAt = 0;
+    // Keep one spring-like animation alive and retarget it on wheel events. This avoids
+    // cancelling/restarting React renders on every trackpad tick, which caused stutter.
+    if (animationFrameRef.current !== null) return;
+    let previousTime = 0;
     const animate = (now: number) => {
-      if (!startedAt) startedAt = now;
-      const progress = Math.min(1, (now - startedAt) / duration);
-      // Symmetric ease-in-out keeps zoom calm at the start and settles softly at the end.
-      const eased = progress < 0.5
-        ? 4 * progress * progress * progress
-        : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-      const current = {
-        zoom: from.zoom + (target.zoom - from.zoom) * eased,
+      const elapsed = previousTime ? Math.min((now - previousTime) / 1000, 0.05) : 1 / 60;
+      previousTime = now;
+      const current = viewRef.current;
+      const latestTarget = targetViewRef.current;
+      const follow = 1 - Math.exp(-elapsed / 0.105);
+      const next = {
+        zoom: current.zoom + (latestTarget.zoom - current.zoom) * follow,
         pan: {
-          x: from.pan.x + (target.pan.x - from.pan.x) * eased,
-          y: from.pan.y + (target.pan.y - from.pan.y) * eased,
+          x: current.pan.x + (latestTarget.pan.x - current.pan.x) * follow,
+          y: current.pan.y + (latestTarget.pan.y - current.pan.y) * follow,
         },
       };
-      viewRef.current = current;
-      setView(current);
-      if (progress < 1) {
-        animationFrameRef.current = window.requestAnimationFrame(animate);
-      } else {
-        viewRef.current = target;
-        setView(target);
+      const settled = Math.abs(latestTarget.zoom - next.zoom) < 0.001
+        && Math.abs(latestTarget.pan.x - next.pan.x) < 0.08
+        && Math.abs(latestTarget.pan.y - next.pan.y) < 0.08;
+      viewRef.current = settled ? latestTarget : next;
+      paint(viewRef.current);
+      if (settled) {
         animationFrameRef.current = null;
+      } else {
+        animationFrameRef.current = window.requestAnimationFrame(animate);
       }
     };
     animationFrameRef.current = window.requestAnimationFrame(animate);
@@ -239,28 +259,36 @@ export const EgyptMapView: React.FC = () => {
 
   const handleWheel = (event: React.WheelEvent<SVGSVGElement>) => {
     event.preventDefault();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const localX = (event.clientX - rect.left) * MAP_WIDTH / rect.width;
-    const localY = (event.clientY - rect.top) * MAP_HEIGHT / rect.height;
-    const current = viewRef.current;
-    const nextZoom = Math.max(1, Math.min(7, current.zoom * (event.deltaY < 0 ? 1.15 : 1 / 1.15)));
-    const ratio = nextZoom / current.zoom;
+    const svg = event.currentTarget;
+    const viewport = svg.parentElement;
+    if (!viewport) return;
+    const rect = viewport.getBoundingClientRect();
+    const localX = (event.clientX - rect.left - viewport.clientLeft) * MAP_WIDTH / svg.clientWidth;
+    const localY = (event.clientY - rect.top - viewport.clientTop) * MAP_HEIGHT / svg.clientHeight;
+    const pixels = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaMode === 2 ? event.deltaY * rect.height : event.deltaY;
+    const boundedDelta = Math.max(-220, Math.min(220, pixels));
+    const displayed = viewRef.current;
+    const targetZoom = targetViewRef.current.zoom;
+    const nextZoom = Math.max(1, Math.min(7, targetZoom * Math.exp(-boundedDelta * 0.00135)));
+    const pointX = (localX - displayed.pan.x) / displayed.zoom;
+    const pointY = (localY - displayed.pan.y) / displayed.zoom;
     transitionView(nextZoom, {
-      x: localX - (localX - current.pan.x) * ratio,
-      y: localY - (localY - current.pan.y) * ratio,
-    }, 400);
+      x: localX - pointX * nextZoom,
+      y: localY - pointY * nextZoom,
+    });
   };
   const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
     if (event.button !== 0) return;
     if (animationFrameRef.current !== null) window.cancelAnimationFrame(animationFrameRef.current);
     animationFrameRef.current = null;
+    targetViewRef.current = viewRef.current;
     pointerRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY, panX: viewRef.current.pan.x, panY: viewRef.current.pan.y, moved: false };
   };
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
     const pointer = pointerRef.current;
     if (!pointer || pointer.id !== event.pointerId) return;
-    const dx = (event.clientX - pointer.x) * MAP_WIDTH / event.currentTarget.clientWidth;
-    const dy = (event.clientY - pointer.y) * MAP_HEIGHT / event.currentTarget.clientHeight;
+    const dx = (event.clientX - pointer.x) * MAP_WIDTH / (event.currentTarget.clientWidth * viewRef.current.zoom);
+    const dy = (event.clientY - pointer.y) * MAP_HEIGHT / (event.currentTarget.clientHeight * viewRef.current.zoom);
     if (!pointer.moved && Math.abs(dx) + Math.abs(dy) > 3) {
       pointer.moved = true;
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -268,7 +296,9 @@ export const EgyptMapView: React.FC = () => {
     if (pointer.moved) {
       const next = { zoom: viewRef.current.zoom, pan: { x: pointer.panX + dx, y: pointer.panY + dy } };
       viewRef.current = next;
-      setView(next);
+      targetViewRef.current = next;
+      const svg = svgRef.current;
+      if (svg) svg.style.transform = `translate3d(${next.pan.x * svg.clientWidth / MAP_WIDTH}px, ${next.pan.y * svg.clientHeight / MAP_HEIGHT}px, 0) scale(${next.zoom})`;
     }
   };
   const handlePointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
@@ -280,7 +310,7 @@ export const EgyptMapView: React.FC = () => {
     pointerRef.current = null;
   };
   const zoomBy = (amount: number) => {
-    const current = viewRef.current;
+    const current = targetViewRef.current;
     const nextZoom = Math.max(1, Math.min(7, current.zoom + amount));
     const center = { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 };
     const ratio = nextZoom / current.zoom;
@@ -366,14 +396,14 @@ export const EgyptMapView: React.FC = () => {
   return (
     <section className="egypt-map-panel" aria-label={isArabic ? "خريطة تفاعلية لمصر" : "Interactive Egypt map"}>
       <div className="egypt-map-viewport" aria-label={isArabic ? "خريطة تفاعلية قابلة للتكبير والتحريك" : "Interactive zoomable, pannable map"}>
-        <svg ref={svgRef} className="egypt-map-svg" viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`} role="group"
+        <svg ref={svgRef} className="egypt-map-svg" style={{ transform: "translate3d(0px, 0px, 0px) scale(1)" }} viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`} role="group"
           aria-label={isArabic ? "خريطة مصر والطرق والمناطق" : "Egypt roads and administrative areas"}
           onWheel={handleWheel} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp}>
           <defs>
             <linearGradient id="map-vignette" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#091523" stopOpacity=".1"/><stop offset="1" stopColor="#06101a" stopOpacity=".22"/></linearGradient>
             <filter id="map-marker-shadow" x="-100%" y="-100%" width="300%" height="300%"><feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#02070d" floodOpacity=".75"/></filter>
           </defs>
-          <g transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
+          <g>
             <image className="map-osm-basemap" href={`${PUBLIC_BASE_PATH}/maps/egypt-openstreetmap.svg`} x="0" y="0" width={MAP_WIDTH} height={MAP_HEIGHT} preserveAspectRatio="none" aria-hidden="true" />
             <rect x="0" y="0" width={MAP_WIDTH} height={MAP_HEIGHT} fill="url(#map-vignette)" pointerEvents="none" />
             <g className="map-governorates" transform={`scale(${ADMIN_SCALE_X} ${ADMIN_SCALE_Y})`}>

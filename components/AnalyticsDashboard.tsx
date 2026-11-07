@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import { aggregateDemoAnalytics, type AnalyticsPeriod, type AnalyticsPeriodSummary, type DemoLeadStage } from "../data/analytics";
 import { useApp } from "../context/AppContext";
+import { INVENTORY } from "../data/catalogue";
 
 const STAGES: readonly DemoLeadStage[] = ["new", "qualified", "confirmed", "closed-lost"];
 const STAGE_COLORS: Record<DemoLeadStage, string> = {
@@ -30,6 +31,35 @@ export const AnalyticsDashboard: React.FC<{ fullPage?: boolean }> = ({ fullPage 
   const locale = isArabic ? "ar-EG" : "en-EG";
   const number = new Intl.NumberFormat(locale);
   const maxMessages = Math.max(1, ...summary.series.map((point) => point.clientMessages));
+  const confirmedLeads = summary.leadStages.confirmed;
+  const conversionRate = summary.clients ? Math.round((confirmedLeads / summary.clients) * 100) : 0;
+  const averagePrice = Math.round(INVENTORY.reduce((sum, property) => sum + property.priceEgp, 0) / Math.max(INVENTORY.length, 1));
+  const averageArea = Math.round(INVENTORY.reduce((sum, property) => sum + property.areaSqm, 0) / Math.max(INVENTORY.length, 1));
+  const marketMix = [...INVENTORY.reduce((groups, property) => {
+    const group = groups.get(property.city.id) ?? { id: property.city.id, name: property.city.name, count: 0 };
+    group.count += 1;
+    groups.set(property.city.id, group);
+    return groups;
+  }, new Map<string, { id: string; name: { en: string; ar: string }; count: number }>()).values()]
+    .sort((a, b) => b.count - a.count || a.id.localeCompare(b.id));
+  const maxMarketCount = Math.max(1, ...marketMix.map((item) => item.count));
+  const trendWidth = 560;
+  const trendHeight = 192;
+  const trendLeft = 38;
+  const trendRight = 12;
+  const trendTop = 16;
+  const trendBottom = 30;
+  const trendPlotWidth = trendWidth - trendLeft - trendRight;
+  const trendPlotHeight = trendHeight - trendTop - trendBottom;
+  const maxDailyActivity = Math.max(1, ...summary.series.flatMap((point) => [point.clients, point.conversations]));
+  const trendCoordinates = (key: "clients" | "conversations") => summary.series.map((point, index) => {
+    const x = summary.series.length <= 1 ? trendLeft + trendPlotWidth / 2 : trendLeft + index * trendPlotWidth / (summary.series.length - 1);
+    const y = trendTop + trendPlotHeight - (point[key] / maxDailyActivity) * trendPlotHeight;
+    return { x, y, value: point[key], date: point.date };
+  });
+  const clientTrend = trendCoordinates("clients");
+  const conversationTrend = trendCoordinates("conversations");
+  const trendPath = (points: readonly { x: number; y: number }[]) => points.map((point, index) => `${index ? "L" : "M"}${point.x},${point.y}`).join(" ");
   const chartWidth = 560;
   const chartHeight = 188;
   const chartLeft = 34;
@@ -71,7 +101,7 @@ export const AnalyticsDashboard: React.FC<{ fullPage?: boolean }> = ({ fullPage 
       <header className="analytics-header">
         <div>
           <div className="analytics-eyebrow">{isArabic ? "نظرة عامة" : "OVERVIEW"} · {periodRange(summary, locale)}</div>
-          {fullPage ? <h1>{isArabic ? "لوحة التحليلات" : "Demo analytics"}</h1> : <h2>{isArabic ? "لوحة التحليلات" : "Demo analytics"}</h2>}
+          <h2>{isArabic ? "لوحة التحليلات" : "Demo analytics"}</h2>
           <p>{isArabic ? "ملخص نشاط توضيحي للتجربة — لا يحتوي على بيانات عملاء حقيقية." : "Illustrative activity summary for the demo — no real client data."}</p>
         </div>
         {fullPage ? <a className="analytics-back-button" href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/`}>
@@ -94,6 +124,12 @@ export const AnalyticsDashboard: React.FC<{ fullPage?: boolean }> = ({ fullPage 
         <article className="analytics-kpi"><span>{isArabic ? "المحادثات" : "Conversations"}</span><strong>{number.format(summary.conversations)}</strong><small>{isArabic ? "محادثات تجريبية" : "demo conversations"}</small></article>
         <article className="analytics-kpi"><span>{isArabic ? "رسائل العملاء" : "Client messages"}</span><strong>{number.format(summary.clientMessages)}</strong><small>{isArabic ? "إجمالي الرسائل الواردة" : "total inbound messages"}</small></article>
         <article className="analytics-kpi"><span>{isArabic ? "تفاعلات الوحدات" : "Property interactions"}</span><strong>{number.format(summary.propertyInteractions)}</strong><small>{isArabic ? "عرض أو رفض أو تأكيد" : "shown, rejected, or confirmed"}</small></article>
+        {fullPage ? <>
+          <article className="analytics-kpi analytics-kpi--accent-green"><span>{isArabic ? "عملاء مؤكدون" : "Confirmed leads"}</span><strong>{number.format(confirmedLeads)}</strong><small>{isArabic ? "من الفترة المحددة" : "in the selected period"}</small></article>
+          <article className="analytics-kpi analytics-kpi--accent-violet"><span>{isArabic ? "معدل التحويل" : "Lead conversion"}</span><strong>{number.format(conversionRate)}%</strong><small>{isArabic ? "من العملاء إلى مؤكدين" : "clients to confirmed"}</small></article>
+          <article className="analytics-kpi analytics-kpi--accent-cyan"><span>{isArabic ? "وحدات في الكتالوج" : "Sample inventory"}</span><strong>{number.format(INVENTORY.length)}</strong><small>{isArabic ? `${number.format(averageArea)} م² متوسط المساحة` : `${number.format(averageArea)} m² average area`}</small></article>
+          <article className="analytics-kpi analytics-kpi--accent-amber"><span>{isArabic ? "متوسط السعر المعروض" : "Average asking price"}</span><strong className="analytics-kpi-money">{new Intl.NumberFormat(locale, { style: "currency", currency: "EGP", maximumFractionDigits: 0 }).format(averagePrice)}</strong><small>{isArabic ? "قيمة توضيحية اصطناعية" : "synthetic illustrative value"}</small></article>
+        </> : null}
       </div>
 
       <div className="analytics-panels">
@@ -152,6 +188,33 @@ export const AnalyticsDashboard: React.FC<{ fullPage?: boolean }> = ({ fullPage 
       </div>
 
       {fullPage ? <div className="analytics-panels analytics-full-insights">
+        <article className="analytics-card analytics-trend-card">
+          <div className="analytics-card-heading"><div><h3>{isArabic ? "نمو النشاط اليومي" : "Daily activity trend"}</h3><p>{isArabic ? "العملاء والمحادثات عبر الفترة المحددة." : "Clients and conversations across the selected period."}</p></div></div>
+          <svg className="analytics-trend-chart" viewBox={`0 0 ${trendWidth} ${trendHeight}`} role="img" aria-label={isArabic ? "مخطط يومي للعملاء والمحادثات" : "Daily clients and conversations trend"}>
+            {[0, 0.5, 1].map((fraction) => {
+              const y = trendTop + trendPlotHeight * (1 - fraction);
+              return <g key={fraction}><line x1={trendLeft} x2={trendWidth - trendRight} y1={y} y2={y} stroke="currentColor" opacity="0.12"/><text x={trendLeft - 8} y={y + 4} textAnchor="end" fontSize="10" fill="currentColor" opacity="0.65">{Math.round(maxDailyActivity * fraction)}</text></g>;
+            })}
+            <path d={trendPath(clientTrend)} fill="none" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d={trendPath(conversationTrend)} fill="none" stroke="#a78bfa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            {clientTrend.map((point, index) => <g key={`clients-${point.date}`}><circle cx={point.x} cy={point.y} r="3" fill="#38bdf8"><title>{`${formatDate(point.date, locale)} · ${isArabic ? "عملاء" : "Clients"}: ${number.format(point.value)}`}</title></circle>{(index === 0 || index === clientTrend.length - 1 || index === Math.floor((clientTrend.length - 1) / 2)) ? <text x={point.x} y={trendHeight - 8} textAnchor="middle" fontSize="9" fill="currentColor" opacity="0.72">{formatDate(point.date, locale)}</text> : null}</g>)}
+            {conversationTrend.map((point) => <circle key={`conversations-${point.date}`} cx={point.x} cy={point.y} r="3" fill="#a78bfa"><title>{`${formatDate(point.date, locale)} · ${isArabic ? "محادثات" : "Conversations"}: ${number.format(point.value)}`}</title></circle>)}
+          </svg>
+          <div className="analytics-chart-legend"><span className="analytics-legend-dot"/><span>{isArabic ? "العملاء" : "Clients"}</span><span className="analytics-legend-dot analytics-legend-dot--violet"/><span>{isArabic ? "المحادثات" : "Conversations"}</span></div>
+        </article>
+        <article className="analytics-card">
+          <div className="analytics-card-heading"><div><h3>{isArabic ? "توزيع الكتالوج حسب المدينة" : "Sample inventory by city"}</h3><p>{isArabic ? "توزيع الوحدات التوضيحية في الكتالوج المحلي." : "Illustrative units in the local sample catalogue."}</p></div></div>
+          <div className="analytics-breakdown-list analytics-city-mix">
+            {marketMix.map((city) => {
+              const percent = Math.round((city.count / Math.max(INVENTORY.length, 1)) * 100);
+              return <div className="analytics-breakdown-row" key={city.id}>
+                <div><span>{city.name[language]}</span><strong>{number.format(city.count)} <small>{percent}%</small></strong></div>
+                <span className="analytics-breakdown-track"><i style={{ width: `${(city.count / maxMarketCount) * 100}%`, background: "linear-gradient(90deg,#38bdf8,#818cf8)" }} /></span>
+              </div>;
+            })}
+          </div>
+          <p className="analytics-inventory-note">{isArabic ? "الأسعار والصور والوحدات بيانات اصطناعية توضيحية." : "Prices, photos, and units are synthetic illustrative data."}</p>
+        </article>
         <article className="analytics-card">
           <div className="analytics-card-heading"><div><h3>{isArabic ? "تفضيلات السداد" : "Payment preferences"}</h3><p>{isArabic ? "اختيارات العملاء المسجلة خلال الفترة." : "Recorded client preferences for this period."}</p></div></div>
           <div className="analytics-breakdown-list">
