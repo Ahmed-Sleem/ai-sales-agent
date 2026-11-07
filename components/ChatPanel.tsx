@@ -7,10 +7,14 @@
  * 2. Displays a visible **Cycle Reasoning Log Card (`[ 🔄 TOC Navigation Steps ]`)** right inside the streaming bubble.
  */
 import React, { useState, useRef, useEffect } from "react";
+import Image from "next/image";
 import { useApp, ConversationTurn } from "../context/AppContext";
 import { runAgent } from "../lib/agent";
-import { InteractiveDemo } from "./InteractiveDemo";
+import { advanceDemoConversation, beginDemoConversation, getDemoQuickReplies, type DemoAssistantTurn, type DemoConversationState, type DemoQuickReply } from "../lib/demoConversation";
 import { TREE, cityById } from "../data/hierarchy";
+
+const PUBLIC_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+const createTurnId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
 interface ExtendedTurn extends ConversationTurn {
   cycle_logs?: string[];
@@ -29,6 +33,10 @@ export const ChatPanel: React.FC = () => {
   const [cycleLogs, setCycleLogs] = useState<string[]>([]);
   const [copyConvSuccess, setCopyConvSuccess] = useState(false);
   const [showCopyBtn, setShowCopyBtn] = useState(false);
+  const [demoMode, setDemoMode] = useState(true);
+  const [demoSession, setDemoSession] = useState<DemoConversationState | null>(null);
+  const [demoSessionConversationId, setDemoSessionConversationId] = useState<string | null>(null);
+  const demoSessionKeyRef = useRef<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const streamingContentRef = useRef("");
@@ -37,6 +45,7 @@ export const ChatPanel: React.FC = () => {
 
   const activeConv = conversations.find(c => c.id === activeConversationId);
   const turns = activeConv ? (activeConv.turns as ExtendedTurn[]) : [];
+  const demoSessionKey = `${activeConversationId ?? "no-conversation"}:${language}`;
 
   const scheduleStreamingPaint = () => {
     if (rafRef.current !== null) return;
@@ -78,6 +87,53 @@ export const ChatPanel: React.FC = () => {
     const frame = requestAnimationFrame(() => setIsDemoHydrated(true));
     return () => cancelAnimationFrame(frame);
   }, []);
+
+  const appendDemoAssistantTurns = (assistantTurns: readonly DemoAssistantTurn[]) => {
+    assistantTurns.forEach((turn, index) => addTurnToConversation({
+      id: `demo_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 7)}`,
+      role: "assistant",
+      content: turn.content,
+      timestamp: new Date().toISOString(),
+      ...(turn.demoPhotos ? { demoPhotos: [...turn.demoPhotos] } : {}),
+    }));
+  };
+
+  const startInteractiveDemo = () => {
+    demoSessionKeyRef.current = demoSessionKey;
+    const started = beginDemoConversation(language);
+    setDemoSession(started.state);
+    setDemoSessionConversationId(activeConversationId);
+    appendDemoAssistantTurns(started.assistantTurns);
+  };
+
+  const toggleDemoMode = () => {
+    if (demoMode) {
+      setDemoMode(false);
+      return;
+    }
+    setDemoMode(true);
+    if (!demoSession || demoSessionConversationId !== activeConversationId) startInteractiveDemo();
+  };
+
+  const restartInteractiveDemo = () => startInteractiveDemo();
+  const demoQuickReplies = demoMode && demoSession && demoSessionConversationId === activeConversationId
+    ? getDemoQuickReplies(demoSession)
+    : [];
+
+  useEffect(() => {
+    if (!demoMode || !activeConversationId || demoSessionKeyRef.current === demoSessionKey) return;
+    demoSessionKeyRef.current = demoSessionKey;
+    const started = beginDemoConversation(language);
+    setDemoSession(started.state);
+    setDemoSessionConversationId(activeConversationId);
+    started.assistantTurns.forEach((turn, index) => addTurnToConversation({
+      id: `demo_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 7)}`,
+      role: "assistant",
+      content: turn.content,
+      timestamp: new Date().toISOString(),
+    }));
+  }, [demoMode, activeConversationId, demoSessionKey, language, addTurnToConversation]);
+
   const runDemoConversation = async () => {
     if (demoRunning) return; setDemoRunning(true);
     const say = (role: "user" | "assistant", content: string, logs?: string[]) =>
@@ -120,34 +176,65 @@ export const ChatPanel: React.FC = () => {
   };
   const resetDemo = () => { setDrillPath([]); setVizPhase("IDLE"); setRejectedIds([]); setShortlistedIds([]); setFocusedPropertyId(null); setActiveGraphNodeIds([]); };
 
-  const handleSend = async (e?: React.FormEvent) => {
+  const handleSend = async (e?: React.FormEvent, quickReply?: DemoQuickReply) => {
     if (e) e.preventDefault();
+    if (demoRunning) return;
     if (isStreaming) {
       abortControllerRef.current?.abort();
       return;
     }
-    if (!inputMessage.trim()) return;
+    const userText = quickReply?.label ?? inputMessage.trim();
+    if (!userText) return;
 
-    const activeProfileId = activeApiKeyId || (savedApiKeys && savedApiKeys.length > 0 ? savedApiKeys[0].id : null);
-    if (!activeProfileId) {
-      alert(language === "ar"
-        ? "يرجى إضافة وتفعيل ملف مفتاح API مشفر أولاً من الإعدادات قبل إرسال الرسالة."
-        : "Please add and activate an encrypted API key profile from Settings before sending a message."
-      );
-      setIsSettingsOpen(true);
-      return;
+    if (!demoMode) {
+      const activeProfileId = activeApiKeyId || (savedApiKeys && savedApiKeys.length > 0 ? savedApiKeys[0].id : null);
+      if (!activeProfileId) {
+        alert(language === "ar"
+          ? "يرجى إضافة وتفعيل ملف مفتاح API مشفر أولاً من الإعدادات قبل إرسال الرسالة."
+          : "Please add and activate an encrypted API key profile from Settings before sending a message."
+        );
+        setIsSettingsOpen(true);
+        return;
+      }
     }
-
-    const userText = inputMessage.trim();
     setInputMessage("");
 
     const userTurn: ConversationTurn = {
-      id: `turn_u_${Date.now()}`,
+      id: createTurnId("turn_u"),
       role: "user",
       content: userText,
       timestamp: new Date().toISOString()
     };
     addTurnToConversation(userTurn);
+
+    if (demoMode) {
+      setIsStreaming(true);
+      try {
+        await sleep(100);
+        let session = demoSessionConversationId === activeConversationId ? demoSession : null;
+        let openingTurns: readonly DemoAssistantTurn[] = [];
+        if (!session) {
+          demoSessionKeyRef.current = demoSessionKey;
+          const started = beginDemoConversation(language);
+          session = started.state;
+          openingTurns = started.assistantTurns;
+        }
+        const step = advanceDemoConversation(session, userText, quickReply?.id);
+        setDemoSession(step.state);
+        setDemoSessionConversationId(activeConversationId);
+        appendDemoAssistantTurns([...openingTurns, ...step.assistantTurns]);
+      } catch {
+        addTurnToConversation({
+          id: createTurnId("turn_demo_error"),
+          role: "assistant",
+          content: language === "ar" ? "حصل خطأ في التجربة المحلية. جرّب تاني من فضلك." : "The local demo had a problem. Please try that again.",
+          timestamp: new Date().toISOString(),
+        });
+      } finally {
+        setIsStreaming(false);
+      }
+      return;
+    }
 
     setIsStreaming(true);
     streamingContentRef.current = "";
@@ -182,7 +269,7 @@ export const ChatPanel: React.FC = () => {
       });
       partialText = answer;
       const assistantTurn: ExtendedTurn = {
-        id: `turn_a_${Date.now()}`,
+        id: createTurnId("turn_a"),
         role: "assistant",
         content: partialText || (language === "ar" ? "تم استكمال البحث." : "Search completed."),
         timestamp: new Date().toISOString(),
@@ -192,7 +279,7 @@ export const ChatPanel: React.FC = () => {
     } catch (e: any) {
       const isAbort = e?.name === "AbortError";
       const errTurn: ExtendedTurn = {
-        id: `turn_err_${Date.now()}`,
+        id: createTurnId("turn_err"),
         role: "assistant",
         content: isAbort
           ? (language === "ar" ? "تم إيقاف توليد الإجابة." : "Response generation stopped.")
@@ -369,6 +456,12 @@ export const ChatPanel: React.FC = () => {
                 )}
 
                 {turn.role === "assistant" ? renderContentWithCitations(turn.content) : turn.content}
+                {turn.role === "assistant" ? turn.demoPhotos?.map((photo) => (
+                  <figure className="demo-photo-in-bubble" key={`${turn.id}_${photo.src}`}>
+                    <Image src={`${PUBLIC_BASE_PATH}${photo.src}`} alt={photo.alt} width={600} height={448} unoptimized sizes="(max-width: 640px) 85vw, 280px" />
+                    <figcaption>{language === "ar" ? "صورة تجريبية توضيحية" : "Synthetic demo image"}</figcaption>
+                  </figure>
+                )) : null}
               </div>
               <span className="time">
                 {new Date(turn.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -470,11 +563,42 @@ export const ChatPanel: React.FC = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      <div style={{ display: "flex", gap: "8px", padding: "10px 12px 0", marginBottom: "12px", flexWrap: "wrap" }}>
-        <button type="button" data-demo-ready={isDemoHydrated ? "true" : "false"} onClick={runDemoConversation} disabled={demoRunning || !isDemoHydrated} style={{ padding: "8px 14px", borderRadius: "999px", border: "none", background: "var(--color-accent)", color: "var(--color-accent-contrast)", fontWeight: 700, cursor: demoRunning || !isDemoHydrated ? "wait" : "pointer", fontSize: "12px" }}>{demoRunning ? "▶ Playing…" : "▶ Play demo conversation"}</button>
-        <button type="button" onClick={resetDemo} style={{ padding: "8px 14px", borderRadius: "999px", border: "1px solid var(--border-med)", background: "var(--color-paper)", color: "var(--text-primary)", fontWeight: 700, cursor: "pointer", fontSize: "12px" }}>↺ Reset 3D city</button>
+      <div className="chat-demo-dock" role="group" aria-label={language === "ar" ? "أدوات المحادثة والعرض التجريبي" : "Chat and demo controls"}>
+        <button type="button" data-demo-ready={isDemoHydrated ? "true" : "false"} onClick={runDemoConversation} disabled={demoRunning || !isDemoHydrated} title={language === "ar" ? "تشغيل محادثة توضيحية داخل سجل المحادثة" : "Play a scripted walkthrough in the shared chat transcript"}>
+          {demoRunning ? "▶ Playing…" : language === "ar" ? "▶ تشغيل العرض المسجل" : "▶ Play demo conversation"}
+        </button>
+        <button type="button" className="chat-dock-secondary" onClick={resetDemo}>
+          {language === "ar" ? "↺ إعادة ضبط المدينة" : "↺ Reset 3D city"}
+        </button>
+        <button
+          id="demoModeToggle"
+          type="button"
+          role="switch"
+          aria-label={language === "ar" ? "وضع المحادثة التجريبية" : "Demo mode"}
+          aria-checked={demoMode}
+          className={`chat-demo-toggle${demoMode ? " is-on" : ""}`}
+          onClick={toggleDemoMode}
+          disabled={isStreaming || demoRunning}
+          title={language === "ar" ? "يستخدم بيانات تجريبية محلية ولا يحتاج مفتاح API" : "Uses local synthetic data; no API key required"}
+        >
+          <span className="chat-demo-toggle-track" aria-hidden="true"><span /></span>
+          <span>{language === "ar" ? `وضع التجربة: ${demoMode ? "مفعّل" : "متوقف"}` : `Demo mode: ${demoMode ? "ON" : "OFF"}`}</span>
+        </button>
+        {demoMode && demoSession?.stage === "done" ? (
+          <button type="button" className="chat-dock-secondary" onClick={restartInteractiveDemo}>
+            {language === "ar" ? "إعادة بدء التجربة" : "Restart demo"}
+          </button>
+        ) : null}
       </div>
-      <InteractiveDemo key={language} language={language} />
+      {demoMode && demoQuickReplies.length > 0 ? (
+        <div className="chat-demo-quick-replies" role="group" aria-label={language === "ar" ? "اختيارات سريعة للتجربة" : "Demo quick replies"}>
+          {demoQuickReplies.map((reply) => (
+            <button key={reply.id} type="button" onClick={() => { void handleSend(undefined, reply); }} disabled={isStreaming || demoRunning}>
+              {reply.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {vizSelection && (
         <div style={{ display: "flex", alignItems: "center", gap: "7px", width: "fit-content", maxWidth: "68%", margin: "12px 12px 10px", padding: "5px 8px 5px 10px", borderRadius: "999px", background: "var(--glass-bg-strong, var(--color-slate))", border: "1px solid var(--border-med)", backdropFilter: "blur(14px)", fontSize: "11px", color: "var(--text-primary)" }}>
           <span aria-hidden="true">📍</span>
@@ -493,7 +617,9 @@ export const ChatPanel: React.FC = () => {
             ref={textareaRef}
             id="chatInput"
             className="chat-input composer-input"
-            placeholder={t("ask_placeholder")}
+            placeholder={demoMode
+              ? language === "ar" ? "اكتب ردك لساره في التجربة…" : "Type your reply to Sara in Demo mode…"
+              : t("ask_placeholder")}
             value={inputMessage}
             onChange={(e) => {
               setInputMessage(e.target.value);
@@ -513,7 +639,7 @@ export const ChatPanel: React.FC = () => {
                 handleSend();
               }
             }}
-            disabled={isStreaming}
+            disabled={isStreaming || demoRunning}
             aria-label="Type your question"
             autoComplete="off"
             rows={1}
@@ -521,7 +647,7 @@ export const ChatPanel: React.FC = () => {
           <button
             className="send-btn composer-send"
             id="sendButton"
-            disabled={!isStreaming && !inputMessage.trim()}
+            disabled={demoRunning || (!isStreaming && !inputMessage.trim())}
             aria-label={isStreaming ? "Stop generation" : "Send message"}
             title={isStreaming ? (language === "ar" ? "إيقاف التوليد" : "Stop Generation") : (language === "ar" ? "إرسال الاستفسار" : "Send Query")}
             type="submit"

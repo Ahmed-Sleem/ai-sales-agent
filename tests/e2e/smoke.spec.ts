@@ -15,47 +15,82 @@ test('app shell loads without page errors', async ({ page }) => {
   expect(accessibility.violations).toEqual([]);
 });
 
-test('interactive demo runs offline through qualification, gated disclosure, photos, and rejection capture', async ({ page }) => {
+test('demo mode uses the existing chat feed and composer for offline qualification and follow-up', async ({ page }) => {
   const aiProviderRequests: string[] = [];
   page.on('request', (request) => {
     if (/api\.openai\.com|api\.deepseek\.com|generativelanguage\.googleapis\.com|api\.groq\.com/i.test(request.url())) aiProviderRequests.push(request.url());
   });
   await page.goto('/');
-  const demo = page.getByRole('region', { name: 'Interactive no-key demo' });
-  await demo.getByRole('button', { name: 'Start interactive demo' }).click();
-  await expect(demo.getByText(/Peace be upon you\. I'm Sara, the sales manager\./i)).toBeVisible();
+  const dock = page.getByRole('group', { name: 'Chat and demo controls' });
+  const toggle = dock.getByRole('switch', { name: 'Demo mode' });
+  await expect(toggle).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('#chatInput')).toHaveCount(1);
+  await expect(page.locator('section[aria-label="Interactive no-key demo"]')).toHaveCount(0);
+  const chat = page.locator('#chatMessages');
+  await expect(chat.getByText(/Peace be upon you\. I'm Sara, the sales manager\./i)).toBeVisible();
+  await expect(page.locator('#chatInput')).toHaveAttribute('placeholder', /Demo mode/i);
 
-  const input = demo.getByRole('textbox', { name: 'Write your demo reply' });
-  const send = () => demo.getByRole('button', { name: 'Send', exact: true }).click();
-  await input.fill('New Cairo'); await send();
-  await expect(demo.getByText(/maximum budget/i)).toBeVisible();
-  await input.fill('8.5 million EGP'); await send();
-  await expect(demo.getByText(/interior area/i)).toBeVisible();
-  await input.fill('160 square metres'); await send();
-  await expect(demo.getByText(/closest illustrative match is Apartment 02/i)).toBeVisible();
-  await expect(demo.getByText(/Would you like to hear the price/i)).toBeVisible();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-checked', 'false');
+  await expect(chat.getByText(/Peace be upon you\. I'm Sara, the sales manager\./i)).toBeVisible();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-checked', 'true');
+  await expect(chat.getByText(/Peace be upon you\. I'm Sara, the sales manager\./i)).toHaveCount(1);
 
-  await demo.getByRole('button', { name: 'Yes, continue' }).click();
-  await expect(demo.getByText(/illustrative price/i)).toBeVisible();
-  await demo.getByRole('button', { name: 'Yes, continue' }).click();
-  await expect(demo.getByText(/prefer to buy in cash/i)).toBeVisible();
-  await demo.getByRole('button', { name: 'Installments', exact: true }).click();
-  await expect(demo.getByText(/illustrative payment plans/i)).toBeVisible();
-  await demo.getByRole('button', { name: 'Send demo photos' }).click();
-  const demoImage = demo.getByRole('img', { name: /Synthetic demo photo of a bright/i });
+  const input = page.locator('#chatInput');
+  const send = async (text: string) => { await input.fill(text); await page.locator('#sendButton').click(); };
+  await send('New Cairo');
+  await expect(chat.getByText(/maximum budget/i)).toBeVisible();
+  await send('8.5 million EGP');
+  await expect(chat.getByText(/interior area/i)).toBeVisible();
+  await send('160 square metres');
+  await expect(chat.getByText(/closest illustrative match is Apartment 02/i)).toBeVisible();
+  await expect(chat.getByText(/Would you like to hear the price/i)).toBeVisible();
+  await expect(page.locator('#chatMessages .message')).toHaveCount(8);
+
+  const quickReplies = page.getByRole('group', { name: 'Demo quick replies' });
+  await quickReplies.getByRole('button', { name: 'Yes, continue' }).click();
+  await expect(chat.getByText(/illustrative price/i)).toBeVisible();
+  await quickReplies.getByRole('button', { name: 'Yes, continue' }).click();
+  await expect(chat.getByText(/prefer to buy in cash/i)).toBeVisible();
+  await quickReplies.getByRole('button', { name: 'Installments', exact: true }).click();
+  await expect(chat.getByText(/illustrative payment plans/i)).toBeVisible();
+  await quickReplies.getByRole('button', { name: 'Send demo photos' }).click();
+  const demoImage = chat.getByRole('img', { name: /Synthetic demo photo of a bright/i });
   await expect(demoImage).toBeVisible();
   await expect(demoImage).toHaveJSProperty('naturalWidth', 1200);
-  const demoAccessibility = await new AxeBuilder({ page }).include('section[aria-label="Interactive no-key demo"]').analyze();
-  expect(demoAccessibility.violations).toEqual([]);
-  await demo.getByRole('button', { name: 'Explore another' }).click();
-  await expect(demo.getByText(/main reason this property is not suitable/i)).toBeVisible();
-  await demo.getByRole('button', { name: 'price', exact: true }).click();
-  await expect(demo.getByText(/couldn’t find another illustrative match/i)).toBeVisible();
+
+  await quickReplies.getByRole('button', { name: 'Explore another' }).click();
+  await expect(chat.getByText(/main reason this property is not suitable/i)).toBeVisible();
+  await quickReplies.getByRole('button', { name: 'price', exact: true }).click();
+  await expect(chat.getByText(/couldn’t find another illustrative match/i)).toBeVisible();
+  const chatAccessibility = await new AxeBuilder({ page }).include('#centerPanel').analyze();
+  expect(chatAccessibility.violations).toEqual([]);
   expect(aiProviderRequests).toEqual([]);
+});
+
+test('default demo switch and shared composer fit the mobile chat panel', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const toggle = page.getByRole('switch', { name: 'Demo mode' });
+  const composer = page.locator('#chatInput');
+  await expect(toggle).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-checked', 'true');
+  await expect(composer).toBeVisible();
+  await expect(page.locator('#chatMessages').getByText(/Peace be upon you/i)).toBeVisible();
+  const toggleBounds = await toggle.boundingBox();
+  const composerBounds = await composer.boundingBox();
+  expect(toggleBounds).not.toBeNull();
+  expect(composerBounds).not.toBeNull();
+  expect(toggleBounds!.y + toggleBounds!.height).toBeLessThanOrEqual(844);
+  expect(composerBounds!.y + composerBounds!.height).toBeLessThanOrEqual(844);
+  await expect(page.locator('section[aria-label="Interactive no-key demo"]')).toHaveCount(0);
 });
 
 test('demo playback uses one current synthetic property and stages its details', async ({ page }) => {
   await page.goto('/');
+  await expect(page.getByRole('switch', { name: 'Demo mode' })).toHaveAttribute('aria-checked', 'true');
   const playDemo = page.locator('button[data-demo-ready]');
   await expect(playDemo).toBeVisible();
   await expect(playDemo).toHaveAttribute('data-demo-ready', 'true');

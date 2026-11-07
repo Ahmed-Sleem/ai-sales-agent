@@ -26,6 +26,7 @@ export interface ConversationTurn {
   content: string;
   timestamp: string;
   citations?: { code: string; title: string }[];
+  demoPhotos?: { src: string; alt: string; synthetic: true }[];
 }
 
 export interface Conversation {
