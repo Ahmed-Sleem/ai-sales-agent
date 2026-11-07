@@ -21,7 +21,7 @@ function periodRange(summary: AnalyticsPeriodSummary, locale: string): string {
   return `${formatDate(summary.startDate, locale)} – ${formatDate(summary.endDate, locale)}`;
 }
 
-export const AnalyticsDashboard: React.FC = () => {
+export const AnalyticsDashboard: React.FC<{ fullPage?: boolean }> = ({ fullPage = false }) => {
   const { language, setWorkspaceView } = useApp();
   const [period, setPeriod] = useState<AnalyticsPeriod>("week");
   const snapshot = useMemo(() => aggregateDemoAnalytics(), []);
@@ -51,18 +51,34 @@ export const AnalyticsDashboard: React.FC = () => {
     "closed-lost": { en: "Closed / lost", ar: "مغلق / مفقود" },
   };
   const totalStageCount = Math.max(1, summary.clients);
+  const paymentPreferences = [
+    { id: "cash" as const, label: { en: "Cash", ar: "نقداً" }, color: "#34d399" },
+    { id: "installments" as const, label: { en: "Installments", ar: "تقسيط" }, color: "#38bdf8" },
+    { id: "undecided" as const, label: { en: "Undecided", ar: "لم يحدد" }, color: "#a78bfa" },
+  ];
+  const rejectionReasons = [
+    { id: "price" as const, label: { en: "Price", ar: "السعر" } },
+    { id: "location" as const, label: { en: "Location", ar: "الموقع" } },
+    { id: "area" as const, label: { en: "Area", ar: "المساحة" } },
+    { id: "payment_plan" as const, label: { en: "Payment plan", ar: "خطة السداد" } },
+    { id: "other" as const, label: { en: "Other", ar: "أخرى" } },
+  ];
+  const totalPaymentPreferences = Math.max(1, Object.values(summary.paymentPreferences).reduce((sum, count) => sum + count, 0));
+  const totalRejectionReasons = Math.max(1, Object.values(summary.rejectionReasons).reduce((sum, count) => sum + count, 0));
 
   return (
-    <section className="analytics-dashboard" aria-label={isArabic ? "لوحة التحليلات التجريبية" : "Synthetic demo analytics dashboard"}>
+    <section className={`analytics-dashboard ${fullPage ? "analytics-dashboard--full" : ""}`} aria-label={isArabic ? "لوحة التحليلات التجريبية" : "Synthetic demo analytics dashboard"}>
       <header className="analytics-header">
         <div>
           <div className="analytics-eyebrow">{isArabic ? "نظرة عامة" : "OVERVIEW"} · {periodRange(summary, locale)}</div>
-          <h2>{isArabic ? "لوحة التحليلات" : "Demo analytics"}</h2>
+          {fullPage ? <h1>{isArabic ? "لوحة التحليلات" : "Demo analytics"}</h1> : <h2>{isArabic ? "لوحة التحليلات" : "Demo analytics"}</h2>}
           <p>{isArabic ? "ملخص نشاط توضيحي للتجربة — لا يحتوي على بيانات عملاء حقيقية." : "Illustrative activity summary for the demo — no real client data."}</p>
         </div>
-        <button className="analytics-back-button" type="button" onClick={() => setWorkspaceView("map")}>
+        {fullPage ? <a className="analytics-back-button" href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/`}>
+          <span aria-hidden="true">{isArabic ? "→" : "←"}</span> {isArabic ? "العودة إلى مساحة العمل" : "Back to workspace"}
+        </a> : <button className="analytics-back-button" type="button" onClick={() => setWorkspaceView("map")}>
           <span aria-hidden="true">←</span> {isArabic ? "العودة إلى الخريطة" : "Back to map"}
-        </button>
+        </button>}
       </header>
 
       <div className="analytics-period-control" role="group" aria-label={isArabic ? "الفترة الزمنية" : "Analytics period"}>
@@ -134,6 +150,35 @@ export const AnalyticsDashboard: React.FC = () => {
           </ol> : <p className="analytics-empty">{isArabic ? "لا توجد مواقع مسجلة في هذه الفترة." : "No locations recorded in this period."}</p>}
         </article>
       </div>
+
+      {fullPage ? <div className="analytics-panels analytics-full-insights">
+        <article className="analytics-card">
+          <div className="analytics-card-heading"><div><h3>{isArabic ? "تفضيلات السداد" : "Payment preferences"}</h3><p>{isArabic ? "اختيارات العملاء المسجلة خلال الفترة." : "Recorded client preferences for this period."}</p></div></div>
+          <div className="analytics-breakdown-list">
+            {paymentPreferences.map((item) => {
+              const count = summary.paymentPreferences[item.id];
+              const percent = Math.round((count / totalPaymentPreferences) * 100);
+              return <div className="analytics-breakdown-row" key={item.id}>
+                <div><span>{item.label[language]}</span><strong>{number.format(count)} <small>{percent}%</small></strong></div>
+                <span className="analytics-breakdown-track"><i style={{ width: `${percent}%`, background: item.color }} /></span>
+              </div>;
+            })}
+          </div>
+        </article>
+        <article className="analytics-card">
+          <div className="analytics-card-heading"><div><h3>{isArabic ? "أسباب رفض الوحدات" : "Property rejection reasons"}</h3><p>{isArabic ? "أكثر العوامل التي أثرت على ملاءمة الوحدة." : "Factors most often affecting property fit."}</p></div><span className="analytics-chart-total">{number.format(summary.rejections)}</span></div>
+          <div className="analytics-breakdown-list">
+            {rejectionReasons.map((item) => {
+              const count = summary.rejectionReasons[item.id];
+              const percent = Math.round((count / totalRejectionReasons) * 100);
+              return <div className="analytics-breakdown-row" key={item.id}>
+                <div><span>{item.label[language]}</span><strong>{number.format(count)} <small>{percent}%</small></strong></div>
+                <span className="analytics-breakdown-track"><i style={{ width: `${percent}%`, background: "#fb7185" }} /></span>
+              </div>;
+            })}
+          </div>
+        </article>
+      </div> : null}
 
       <footer className="analytics-footer">
         <strong>{isArabic ? "بيانات اصطناعية" : "SYNTHETIC DATA"}</strong>

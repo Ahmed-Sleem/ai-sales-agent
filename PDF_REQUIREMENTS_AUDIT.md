@@ -3,7 +3,7 @@
 **Reviewed:** 2026-11-07 (Africa/Cairo)  
 **Implementation:** `/home/user/ai-sales-agent-publish`  
 **Supersedes:** the findings in `PUBLIC_URLS_PDF_AUDIT_2026-11-06.md`, which described the pre-completion public UI.  
-**Evidence:** `npm run verify` passed on 2026-11-07; see the final checkpoint section of `PROJECT_COMPLETION_PLAN.md` for the grouped result.
+**Evidence:** latest local `npm run verify` and `/ai-sales-agent` base-path build passed on 2026-11-07; the latest dashboard, inventory, and unit-detail changes still need pushing/deployment.
 
 ## Requirement-by-requirement status
 
@@ -16,13 +16,13 @@
 | 5 | Ask cash vs installments before sharing payment-plan terms | Payment choice is an explicit step. Installment plans are revealed only after choosing installments; the cash branch has no plan data or terms. Unit and E2E coverage. | **PASS** |
 | 6 | After the details, handle confirmation or exploring another property | The follow-up state machine handles confirmation and an alternative-search path. Tests cover both; the UI offers these choices after the staged details. | **PASS** |
 | 7 | Capture why a property is unsuitable | The visitor can select a reason (including price, location, area, payment, or other) and optional detail; the demo conversation records it in its in-memory interaction state and uses it while offering an alternative. This is not presented as real customer analytics and is not a durable lead-management system. | **PASS — demo-session scope** |
-| 8 | Show dummy property photos | The selected sample listing can return its bundled illustrative photos in the chat with synthetic-photo captions and localized alt text. E2E checks the image renders. | **PASS** |
+| 8 | Show dummy property photos | The selected sample listing can return bundled illustrative photos in chat and opens an in-map-surface detail view with gallery, specs, price, and payment-plan details. Pexels stock photos are bundled locally, source-linked, and clearly labelled illustrative; unit/map/chat demo flows are E2E-tested. | **PASS** |
 | 9 | Remove the thinking banner from the GUI | Thinking/retrieval status log and its settings toggle were removed. No user-facing chain-of-thought panel is shown; the ordinary transient typing indicator remains. | **PASS** |
 | 10 | Remove cycle count from the GUI | No retrieval-cycle control or count is exposed. The provider-side limit remains an internal fixed value. | **PASS** |
-| 11 | Minimalistic yet impressive GUI | The conversations sidebar, history controls, and 3D visualization are gone. The interface has one chat, compact toolbar, detailed map, and a dashboard that replaces the map in its right-side panel; responsive/mobile and accessibility smoke tests pass. “Impressive” is subjective and no separate owner screenshot sign-off is recorded. | **IMPLEMENTED — owner visual sign-off remains subjective** |
+| 11 | Minimalistic yet impressive GUI | The conversations sidebar, history controls, and 3D visualization are gone. The interface has one chat, compact toolbar, detailed map, a full-page Analysis dashboard opened in a new tab, and an in-place unit-detail view. Responsive/mobile and accessibility smoke tests pass. “Impressive” is subjective and no separate owner screenshot sign-off is recorded. | **IMPLEMENTED — owner visual sign-off remains subjective** |
 | 12 | Use a 2D Egypt map instead of a 3D globe/visualization | The right panel now uses a detailed, bundled OpenStreetMap road basemap with bilingual governorate outlines, selectable city/area/property markers, smooth zoom/pan, selection focus, and offline interaction. An unobtrusive OpenStreetMap contributor/ODbL credit stays inside the map. No external tile requests are used. | **PASS** |
-| 13 | Dashboard with client/message counts by day, week, and month | The dashboard has day/week/month periods and synthetic counts for clients, conversations, and messages. It replaces the map inside the right-side panel while leaving the chat available. The selected period drives the metrics and chart data. | **PASS** |
-| 14 | Hot properties, hot locations, and useful graphs | The dashboard includes message and lead-stage charts plus ranked synthetic property and location activity. The synthetic-data notice is visible; chart/ranking behavior is covered by unit and E2E tests. | **PASS** |
+| 13 | Dashboard with client/message counts by day, week, and month | The dedicated `/analysis/` page opens in a new tab and uses the full viewport while preserving the same dark glass visual language. Day/week/month filters drive synthetic client, conversation, and message metrics; the original chat tab remains open and unchanged. | **PASS** |
+| 14 | Hot properties, hot locations, and useful graphs | The full-page dashboard includes message and lead-stage charts, ranked property/location activity, payment-preference and rejection-reason breakdowns, and a synthetic-data notice. Dashboard behavior is covered by unit and E2E tests. | **PASS** |
 
 ## PDF requirements still outstanding
 
@@ -33,7 +33,7 @@ All other concrete behavior listed in the one-page PDF is implemented and verifi
 
 ## Additional map acceptance (requested separately from the PDF)
 
-Map selection is preserved as structured metadata on the user turn and included in the current model-bound message context. In the no-key demo, selecting or typing a city/area in chat updates map zoom/drill state, and a returned sample property focuses/highlights its building marker; tool-generated `VizDirective` updates work as well. Analysis replaces the map in that same right-side panel, while the single chat composer/transcript remain visible and the analysis scrollbar is visually hidden. E2E/unit checks cover these interactions.
+Map selection is preserved as structured metadata on the user turn and included in the current model-bound message context. In the no-key demo, selecting or typing a city/area in chat updates map zoom/drill state, and a returned sample property focuses/highlights its building marker and opens unit details; tool-generated `VizDirective` updates work as well. Clicking a property marker replaces the map with a detail page in the same work surface, with Back to map retaining the context. The Analysis control opens a full-page dashboard in a new tab. E2E/unit checks cover these interactions.
 
 ## Static public-hosting safety (additional to the PDF checklist)
 
@@ -41,4 +41,4 @@ GitHub Pages is static and does not provide this app a secure backend or API-key
 
 ## Verification evidence
 
-The 2026-11-07 map-refresh grouped `npm run verify` completed successfully: typecheck passed; lint had 12 warnings and no errors; all 118 unit tests passed; secret scan clean; dependency audit found 0 vulnerabilities; production static build passed; all 10 Playwright E2E tests passed. Coverage includes dashboard replacement in the right panel, no-key demo chat driving map zoom/drill and sample-property focus, hidden analytics scrollbar, map-selection attachments, no-key static safety, exact Arabic greeting, staged disclosure, synthetic photos, rejection reasons, accessibility smoke, and mobile layout. A separate `NEXT_PUBLIC_BASE_PATH=/ai-sales-agent npm run build` also passed for the Pages URL.
+The latest grouped `npm run verify` completed successfully: typecheck passed; lint had 12 warnings and no errors; all 119 unit tests passed; secret scan clean; dependency audit found 0 vulnerabilities; production static build passed; all 12 Playwright E2E tests passed. Coverage includes the new-tab full-page analytics route, ten added listings, stock-photo rendering, unit-detail map replacement/back behavior, model-demo discovery of a new Alexandria listing, map/chat synchronization, static safety, Arabic greeting, staged disclosure, accessibility smoke, and mobile layout. A separate `NEXT_PUBLIC_BASE_PATH=/ai-sales-agent npm run build` also passed for the Pages URL. These latest changes are verified locally but not yet deployed.

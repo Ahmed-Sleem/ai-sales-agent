@@ -16,6 +16,20 @@ describe('synthetic property inventory', () => {
     expect(INVENTORY.every((property) => property.photos.every((photo) => photo.synthetic))).toBe(true);
   });
 
+  it('adds ten searchable demo listings across Alexandria, Cairo, and other regions', () => {
+    const addedIds = [
+      'demo-alexandria-apartment-03', 'demo-alexandria-apartment-04', 'demo-alexandria-apartment-05',
+      'demo-cairo-apartment-04', 'demo-cairo-penthouse-02', 'demo-cairo-apartment-05',
+      'demo-giza-villa-02', 'demo-october-apartment-02', 'demo-north-coast-chalet-03', 'demo-north-coast-villa-02',
+    ];
+    const added = INVENTORY.filter((property) => addedIds.includes(property.id));
+    expect(added).toHaveLength(10);
+    expect(added.filter((property) => property.city.id === 'alexandria')).toHaveLength(3);
+    expect(added.filter((property) => property.city.id === 'cairo')).toHaveLength(3);
+    expect(added.filter((property) => property.city.id !== 'alexandria' && property.city.id !== 'cairo')).toHaveLength(4);
+    expect(added.every((property) => property.photos.some((photo) => photo.sourceUrl?.includes('pexels.com')))).toBe(true);
+  });
+
   it('derives the legacy hierarchy from the inventory without adding or losing listings', () => {
     const units = TREE.flatMap((city) => city.districts.flatMap((district) => district.compounds.flatMap((community) => community.units)));
     expect(units).toHaveLength(INVENTORY.length);

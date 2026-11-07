@@ -103,7 +103,7 @@ describe('demo conversation adapter for the shared chat', () => {
     expect(session.state.stage).toBe('disclosure');
     expect(session.state.closestFallback).toBe(true);
     expect(session.assistantTurns[0].content).toMatch(/couldn’t find an exact match/i);
-    expect(session.assistantTurns[0].content).toContain('Apartment 07');
+    expect(session.assistantTurns[0].content).toContain('Apartment 08');
     expect(session.assistantTurns[0].content).toMatch(/not a live offer/i);
     expect(session.assistantTurns[1].content).toMatch(/Would you like to hear the price/i);
   });

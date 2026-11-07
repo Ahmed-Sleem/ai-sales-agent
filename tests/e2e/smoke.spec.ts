@@ -36,20 +36,24 @@ test('app shell loads without page errors or a conversations sidebar', async ({ 
   expect(accessibility.violations).toEqual([]);
 });
 
-test('synthetic analytics dashboard switches periods and returns to the same chat', async ({ page }) => {
+test('full analytics dashboard opens in a new tab and fills the page', async ({ page }) => {
   await page.goto('/');
-  await page.locator('#dashboardToggleBtn').click();
-  const dashboard = page.getByRole('region', { name: 'Synthetic demo analytics dashboard' });
+  const [dashboardPage] = await Promise.all([
+    page.waitForEvent('popup'),
+    page.locator('#dashboardToggleBtn').click(),
+  ]);
+  await dashboardPage.waitForLoadState();
+  const dashboard = dashboardPage.getByRole('region', { name: 'Synthetic demo analytics dashboard' });
   await expect(dashboard).toBeVisible();
-  await expect(page.locator('#rightPanel .egypt-map-svg')).toBeHidden();
-  await expect(page.locator('#rightPanel .analytics-dashboard')).toBeVisible();
-  expect(await dashboard.evaluate((element) => getComputedStyle(element).scrollbarWidth)).toBe('none');
-  await expect(page.locator('#chatInput')).toBeVisible();
-  await expect(page.locator('#chatInput')).toHaveCount(1);
+  await expect(dashboardPage.locator('.analysis-topbar')).toBeVisible();
+  await expect(dashboardPage.locator('body')).toHaveCSS('overflow-y', 'auto');
+  await expect(dashboardPage.getByRole('link', { name: 'Back to workspace' })).toBeVisible();
   await expect(dashboard.getByRole('button', { name: 'Week' })).toHaveAttribute('aria-pressed', 'true');
   await expect(dashboard.locator('.analytics-kpi')).toHaveCount(4);
   await expect(dashboard.getByRole('heading', { name: 'Hot properties' })).toBeVisible();
   await expect(dashboard.getByRole('heading', { name: 'Hot locations' })).toBeVisible();
+  await expect(dashboard.getByRole('heading', { name: 'Payment preferences' })).toBeVisible();
+  await expect(dashboard.getByRole('heading', { name: 'Property rejection reasons' })).toBeVisible();
   await expect(dashboard.locator('.analytics-bar-chart')).toBeVisible();
   await expect(dashboard.getByText(/Synthetic demo analytics only/)).toBeVisible();
 
@@ -60,10 +64,10 @@ test('synthetic analytics dashboard switches periods and returns to the same cha
   await expect(dashboard.getByRole('button', { name: 'Month' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#chatInput')).toBeVisible();
   await expect(page.locator('#chatInput')).toHaveCount(1);
-  await dashboard.getByRole('button', { name: 'Back to map' }).click();
+  await dashboardPage.getByRole('link', { name: 'Back to workspace' }).click();
+  await expect(dashboardPage.locator('.egypt-map-svg')).toBeVisible();
   await expect(page.locator('.egypt-map-svg')).toBeVisible();
   await expect(page.locator('#chatInput')).toBeVisible();
-  await expect(page.locator('#chatInput')).toHaveCount(1);
   await expect(page.locator('#sendButton')).toHaveCount(1);
 });
 
@@ -112,6 +116,7 @@ test('the bundled OSM map supports admin-region selection, zoom, and chat attach
   await expect(portSaidRegion).toHaveClass(/selected/);
   await expect(page.locator('#centerPanel').getByText(/Selected on map:/)).toContainText('Port Said');
   await page.getByRole('button', { name: 'Reset map view' }).click();
+  await page.waitForTimeout(760);
 
   const zoom = page.locator('.map-control-stack span');
   await expect(zoom).toHaveText('1×');
@@ -140,6 +145,48 @@ test('the bundled OSM map supports admin-region selection, zoom, and chat attach
   await page.locator('#sendButton').click();
   await expect(page.locator('.map-selection-attachment[data-map-selection-id="city:cairo"]')).toBeVisible();
   expect(remoteMapRequests).toEqual([]);
+});
+
+test('one click on a unit marker opens its full detail view in the map work surface', async ({ page }) => {
+  await page.goto('/');
+  const map = page.locator('.egypt-map-svg');
+  const activateMapMarker = async (selector: string) => {
+    const marker = map.locator(selector);
+    await expect(marker).toHaveCount(1);
+    await marker.dispatchEvent('click', { bubbles: true });
+    await page.waitForTimeout(740);
+  };
+  await activateMapMarker('.map-place[data-map-location-id="alexandria"]');
+  await activateMapMarker('.map-cluster[data-map-location-id="district:san-stefano"]');
+  await activateMapMarker('.map-cluster[data-map-location-id="community:alex-corniche-residence"]');
+  await activateMapMarker('.map-property[data-map-location-id="demo-alexandria-apartment-03"]');
+
+  const detail = page.locator('#rightPanel .property-detail-view');
+  await expect(detail).toBeVisible();
+  await expect(detail.getByRole('heading', { name: 'Apartment 08' })).toBeVisible();
+  await expect(detail.locator('.property-detail-community')).toContainText('Corniche Residence');
+  await expect(detail.locator('.property-detail-price')).toContainText('EGP');
+  await expect(detail.locator('.property-spec-grid article')).toHaveCount(3);
+  await expect(detail.getByRole('group', { name: 'Property photos' })).toBeVisible();
+  await expect(detail.locator('.property-detail-hero img')).toHaveJSProperty('naturalWidth', 500);
+  await expect(page.locator('#rightPanel .egypt-map-svg')).toHaveCount(0);
+  await detail.getByRole('button', { name: 'Back to map' }).click();
+  await expect(page.locator('#rightPanel .egypt-map-svg')).toBeVisible();
+});
+
+test('the model demo can search and open a newly added Alexandria unit', async ({ page }) => {
+  await page.goto('/');
+  const chat = page.locator('#chatMessages');
+  await page.getByRole('group', { name: 'Demo quick replies' }).getByRole('button', { name: 'Alexandria' }).click();
+  await expect(chat.getByText(/maximum budget/i)).toBeVisible();
+  await page.locator('#chatInput').fill('7.5 million EGP');
+  await page.locator('#sendButton').click();
+  await expect(chat.getByText(/interior area/i)).toBeVisible();
+  await page.locator('#chatInput').fill('140 square metres');
+  await page.locator('#sendButton').click();
+  await expect(chat.getByText(/I found one close match: Apartment 08/i)).toBeVisible();
+  await expect(page.locator('#rightPanel .property-detail-view h2')).toHaveText('Apartment 08');
+  await expect(page.locator('#rightPanel .property-detail-hero img')).toHaveJSProperty('naturalWidth', 500);
 });
 
 test('public static demo stays no-key and uses the existing feed and composer', async ({ page }) => {
@@ -197,9 +244,10 @@ test('public static demo stays no-key and uses the existing feed and composer', 
   await expect(chat.getByText(/interior area/i)).toBeVisible();
   await send('160 square metres');
   await expect(chat.getByText(/I found one close match: Apartment 02/i)).toBeVisible();
-  await expect(page.locator('.map-focus-property')).toContainText('Apartment 02');
-  await expect(page.locator('.map-property.selected')).toHaveCount(1);
-  await expect(page.locator('.map-property.selected .map-building-glyph')).toBeVisible();
+  await expect(page.locator('.property-detail-view')).toBeVisible();
+  await expect(page.locator('.property-detail-summary')).toContainText('Apartment 02');
+  await expect(page.locator('.property-detail-hero img')).toBeVisible();
+  await expect(page.locator('#rightPanel .egypt-map-svg')).toHaveCount(0);
   await expect(chat.getByText(/Would you like to hear the price/i)).toBeVisible();
   await expect(page.locator('#chatInput')).toBeEnabled();
   await expect(page.locator('#chatMessages .message')).toHaveCount(8);
@@ -246,7 +294,7 @@ test('demo continues with a transparent closest listing when Alexandria has no e
   await expect(input).toBeEnabled();
   await send('About 200 m²');
   await expect(chat.getByText(/couldn’t find an exact match for your budget and area/i)).toBeVisible();
-  await expect(chat.getByText(/nearest sample property is Apartment 07/i)).toBeVisible();
+  await expect(chat.getByText(/nearest sample property is Apartment 08/i)).toBeVisible();
   await expect(input).toBeEnabled();
 
   const quickReplies = page.getByRole('group', { name: 'Demo quick replies' });
@@ -254,7 +302,7 @@ test('demo continues with a transparent closest listing when Alexandria has no e
   await expect(chat.getByText(/The price is/i)).toBeVisible();
   await expect(input).toBeEnabled();
   await quickReplies.getByRole('button', { name: 'Yes, continue' }).click();
-  await expect(chat.getByText(/136 m², smaller than the approximate 200 m²/i)).toBeVisible();
+  await expect(chat.getByText(/155 m², smaller than the approximate 200 m²/i)).toBeVisible();
   await expect(input).toBeEnabled();
 });
 

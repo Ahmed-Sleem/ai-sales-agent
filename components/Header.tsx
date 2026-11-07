@@ -5,7 +5,7 @@ import { useApp } from "../context/AppContext";
 
 /** Compact toolbar for language, settings, and the optional right-side map. */
 export const Header: React.FC = () => {
-  const { language, setLanguage, setIsSettingsOpen, workspaceView, setWorkspaceView, deviceId } = useApp();
+  const { language, setLanguage, setIsSettingsOpen, workspaceView, deviceId } = useApp();
   const [isRightPanelClosed, setIsRightPanelClosed] = useState(false);
 
   useEffect(() => {
@@ -19,18 +19,6 @@ export const Header: React.FC = () => {
     const closed = mainWindow.classList.toggle("right-panel-closed");
     setIsRightPanelClosed(closed);
     if (deviceId) localStorage.setItem(`gpr_layout_${deviceId}_right_closed`, String(closed));
-  };
-
-  const toggleWorkspacePanel = () => {
-    if (workspaceView === "analytics") {
-      setWorkspaceView("map");
-      return;
-    }
-    const mainWindow = document.getElementById("mainWindow");
-    mainWindow?.classList.remove("right-panel-closed");
-    setIsRightPanelClosed(false);
-    if (deviceId) localStorage.setItem(`gpr_layout_${deviceId}_right_closed`, "false");
-    setWorkspaceView("analytics");
   };
 
   return (
@@ -50,19 +38,19 @@ export const Header: React.FC = () => {
           </svg>
         </button>
 
-        <button
-          className={`tool-btn ${workspaceView === "analytics" ? "active-closed" : ""}`}
+        <a
+          className="tool-btn"
           id="dashboardToggleBtn"
-          type="button"
-          onClick={toggleWorkspacePanel}
-          aria-label={workspaceView === "map" ? (language === "ar" ? "فتح لوحة التحليلات" : "Open analytics dashboard") : (language === "ar" ? "العودة إلى الخريطة" : "Return to map")}
-          aria-pressed={workspaceView === "analytics"}
-          title={workspaceView === "map" ? (language === "ar" ? "فتح التحليلات" : "Open analytics") : (language === "ar" ? "عرض الخريطة" : "Show map")}
+          href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/analysis/`}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={language === "ar" ? "فتح لوحة التحليلات في علامة تبويب جديدة" : "Open full analytics dashboard in a new tab"}
+          title={language === "ar" ? "فتح التحليلات في علامة تبويب جديدة" : "Open full analytics in a new tab"}
         >
           <svg viewBox="0 0 24 24" style={{ width: "16px", height: "16px" }} aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 19V5m0 14h17M8 15V9m5 6V5m5 10v-4" />
           </svg>
-        </button>
+        </a>
 
         <button
           className="tool-btn"

@@ -8,6 +8,7 @@ export type PropertyType = 'apartment' | 'townhouse' | 'villa' | 'chalet' | 'pen
 export interface PropertyPhoto {
   readonly src: `/images/properties/${string}`;
   readonly alt: LocalizedText;
+  readonly sourceUrl?: string;
   readonly synthetic: true;
 }
 
@@ -63,6 +64,26 @@ const coastalPhoto: PropertyPhoto = {
     en: 'Synthetic demo photo of a North Coast chalet terrace by the Mediterranean.',
     ar: 'صورة تجريبية توضيحية لشرفة شاليه على ساحل البحر المتوسط.',
   },
+  synthetic: true,
+};
+
+// Pexels stock photography, bundled locally so detail pages remain fast and work offline.
+const stockApartmentPhoto: PropertyPhoto = {
+  src: '/images/properties/stock-apartment-interior.jpg',
+  alt: { en: 'Illustrative modern apartment living room, Pexels stock photo.', ar: 'صورة توضيحية لغرفة معيشة عصرية، من صور Pexels.' },
+  sourceUrl: 'https://www.pexels.com/photo/cozy-living-room-in-modern-apartment-6312353/',
+  synthetic: true,
+};
+const stockAlexPhoto: PropertyPhoto = {
+  src: '/images/properties/stock-alex-sea-view.jpg',
+  alt: { en: 'Illustrative Mediterranean-facing residential balcony, Pexels stock photo.', ar: 'صورة توضيحية لشرفة سكنية تطل على البحر المتوسط، من صور Pexels.' },
+  sourceUrl: 'https://pexels.com/search/sea%20view%20balcony',
+  synthetic: true,
+};
+const stockVillaPhoto: PropertyPhoto = {
+  src: '/images/properties/stock-villa-pool.jpg',
+  alt: { en: 'Illustrative modern villa terrace and pool, Pexels stock photo.', ar: 'صورة توضيحية لشرفة فيلا عصرية وحمام سباحة، من صور Pexels.' },
+  sourceUrl: 'https://pexels.com/photo/terrace-of-modern-resort-house-5563466',
   synthetic: true,
 };
 
@@ -208,6 +229,96 @@ export const INVENTORY = [
     propertyType: 'chalet', priceEgp: 7_600_000, areaSqm: 102, bedrooms: 2,
     finishing: { en: 'Semi-finished', ar: 'نصف تشطيب' }, deliveryYear: 2027,
     coordinates: { latitude: 30.837, longitude: 28.984 }, paymentPlans: [plan8Years], photos: [coastalPhoto], synthetic: true,
+  },
+  {
+    id: 'demo-alexandria-apartment-03', title: { en: 'Apartment 08', ar: 'شقة ٠٨' },
+    city: { id: 'alexandria', name: { en: 'Alexandria', ar: 'الإسكندرية' } },
+    district: { id: 'san-stefano', name: { en: 'San Stefano', ar: 'سان ستيفانو' } },
+    community: { id: 'alex-corniche-residence', name: { en: 'Corniche Residence', ar: 'كورنيش ريزيدنس' } },
+    propertyType: 'apartment', priceEgp: 6_900_000, areaSqm: 155, bedrooms: 3,
+    finishing: { en: 'Fully finished', ar: 'تشطيب كامل' }, deliveryYear: 2028,
+    coordinates: { latitude: 31.2, longitude: 29.966 }, paymentPlans: [plan8Years, plan10Years], photos: [stockAlexPhoto, stockApartmentPhoto], synthetic: true,
+  },
+  {
+    id: 'demo-alexandria-apartment-04', title: { en: 'Apartment 09', ar: 'شقة ٠٩' },
+    city: { id: 'alexandria', name: { en: 'Alexandria', ar: 'الإسكندرية' } },
+    district: { id: 'sidi-gaber', name: { en: 'Sidi Gaber', ar: 'سيدي جابر' } },
+    community: { id: 'sidi-gaber-towers', name: { en: 'Sidi Gaber Towers', ar: 'أبراج سيدي جابر' } },
+    propertyType: 'penthouse', priceEgp: 10_800_000, areaSqm: 190, bedrooms: 3,
+    finishing: { en: 'Semi-finished', ar: 'نصف تشطيب' }, deliveryYear: 2029,
+    coordinates: { latitude: 31.219, longitude: 29.942 }, paymentPlans: [plan10Years], photos: [stockAlexPhoto, stockApartmentPhoto], synthetic: true,
+  },
+  {
+    id: 'demo-alexandria-apartment-05', title: { en: 'Apartment 10', ar: 'شقة ١٠' },
+    city: { id: 'alexandria', name: { en: 'Alexandria', ar: 'الإسكندرية' } },
+    district: { id: 'louran', name: { en: 'Louran', ar: 'لوران' } },
+    community: { id: 'louran-bay-homes', name: { en: 'Louran Bay Homes', ar: 'لوران باي هومز' } },
+    propertyType: 'apartment', priceEgp: 3_200_000, areaSqm: 82, bedrooms: 1,
+    finishing: { en: 'Fully finished', ar: 'تشطيب كامل' }, deliveryYear: 2027,
+    coordinates: { latitude: 31.202, longitude: 29.99 }, paymentPlans: [plan8Years], photos: [stockAlexPhoto, stockApartmentPhoto], synthetic: true,
+  },
+  {
+    id: 'demo-cairo-apartment-04', title: { en: 'Apartment 11', ar: 'شقة ١١' },
+    city: { id: 'cairo', name: { en: 'Cairo', ar: 'القاهرة' } },
+    district: { id: 'heliopolis', name: { en: 'Heliopolis', ar: 'مصر الجديدة' } },
+    community: { id: 'heliopolis-park-residences', name: { en: 'Heliopolis Park Residences', ar: 'هليوبوليس بارك ريزيدنسز' } },
+    propertyType: 'apartment', priceEgp: 4_300_000, areaSqm: 95, bedrooms: 2,
+    finishing: { en: 'Fully finished', ar: 'تشطيب كامل' }, deliveryYear: 2027,
+    coordinates: { latitude: 30.091, longitude: 31.326 }, paymentPlans: [plan8Years], photos: [stockApartmentPhoto, apartmentPhoto], synthetic: true,
+  },
+  {
+    id: 'demo-cairo-penthouse-02', title: { en: 'Penthouse 03', ar: 'بنتهاوس ٠٣' },
+    city: { id: 'cairo', name: { en: 'Cairo', ar: 'القاهرة' } },
+    district: { id: 'new-cairo', name: { en: 'New Cairo', ar: 'القاهرة الجديدة' } },
+    community: { id: 'east-cairo-skyline', name: { en: 'East Cairo Skyline', ar: 'إيست كايرو سكاي لاين' } },
+    propertyType: 'penthouse', priceEgp: 16_500_000, areaSqm: 198, bedrooms: 3,
+    finishing: { en: 'Semi-finished', ar: 'نصف تشطيب' }, deliveryYear: 2030,
+    coordinates: { latitude: 30.053, longitude: 31.479 }, paymentPlans: [plan10Years], photos: [stockApartmentPhoto, apartmentPhoto], synthetic: true,
+  },
+  {
+    id: 'demo-cairo-apartment-05', title: { en: 'Apartment 12', ar: 'شقة ١٢' },
+    city: { id: 'cairo', name: { en: 'Cairo', ar: 'القاهرة' } },
+    district: { id: 'maadi', name: { en: 'Maadi', ar: 'المعادي' } },
+    community: { id: 'maadi-courtyard', name: { en: 'Maadi Courtyard', ar: 'معادي كورت يارد' } },
+    propertyType: 'apartment', priceEgp: 3_900_000, areaSqm: 82, bedrooms: 1,
+    finishing: { en: 'Fully finished', ar: 'تشطيب كامل' }, deliveryYear: 2027,
+    coordinates: { latitude: 29.965, longitude: 31.257 }, paymentPlans: [plan8Years], photos: [stockApartmentPhoto, apartmentPhoto], synthetic: true,
+  },
+  {
+    id: 'demo-giza-villa-02', title: { en: 'Villa 03', ar: 'فيلا ٠٣' },
+    city: { id: 'giza-west', name: { en: 'Giza / West Cairo', ar: 'الجيزة وغرب القاهرة' } },
+    district: { id: 'sheikh-zayed', name: { en: 'Sheikh Zayed', ar: 'الشيخ زايد' } },
+    community: { id: 'west-gardens-estate', name: { en: 'West Gardens Estate', ar: 'ويست جاردنز إستيت' } },
+    propertyType: 'villa', priceEgp: 22_500_000, areaSqm: 330, bedrooms: 5, landAreaSqm: 420,
+    finishing: { en: 'Fully finished', ar: 'تشطيب كامل' }, deliveryYear: 2029,
+    coordinates: { latitude: 30.061, longitude: 30.971 }, paymentPlans: [plan10Years], photos: [stockVillaPhoto, villaPhoto], synthetic: true,
+  },
+  {
+    id: 'demo-october-apartment-02', title: { en: 'Apartment 13', ar: 'شقة ١٣' },
+    city: { id: 'giza-west', name: { en: 'Giza / West Cairo', ar: 'الجيزة وغرب القاهرة' } },
+    district: { id: '6th-october', name: { en: '6th of October', ar: 'السادس من أكتوبر' } },
+    community: { id: 'october-lake-residences', name: { en: 'October Lake Residences', ar: 'أكتوبر ليك ريزيدنسز' } },
+    propertyType: 'apartment', priceEgp: 5_900_000, areaSqm: 178, bedrooms: 3,
+    finishing: { en: 'Fully finished', ar: 'تشطيب كامل' }, deliveryYear: 2028,
+    coordinates: { latitude: 29.972, longitude: 30.935 }, paymentPlans: [plan8Years, plan10Years], photos: [stockApartmentPhoto, apartmentPhoto], synthetic: true,
+  },
+  {
+    id: 'demo-north-coast-chalet-03', title: { en: 'Chalet 03', ar: 'شاليه ٠٣' },
+    city: { id: 'north-coast', name: { en: 'North Coast', ar: 'الساحل الشمالي' } },
+    district: { id: 'sidi-abdel-rahman', name: { en: 'Sidi Abdel Rahman', ar: 'سيدي عبد الرحمن' } },
+    community: { id: 'azure-coast-village', name: { en: 'Azure Coast Village', ar: 'أزور كوست فيليج' } },
+    propertyType: 'chalet', priceEgp: 10_400_000, areaSqm: 140, bedrooms: 3,
+    finishing: { en: 'Fully finished', ar: 'تشطيب كامل' }, deliveryYear: 2029,
+    coordinates: { latitude: 30.86, longitude: 28.94 }, paymentPlans: [plan10Years], photos: [coastalPhoto, stockAlexPhoto], synthetic: true,
+  },
+  {
+    id: 'demo-north-coast-villa-02', title: { en: 'Villa 04', ar: 'فيلا ٠٤' },
+    city: { id: 'north-coast', name: { en: 'North Coast', ar: 'الساحل الشمالي' } },
+    district: { id: 'new-alamein', name: { en: 'New Alamein', ar: 'العلمين الجديدة' } },
+    community: { id: 'blue-bay-hills', name: { en: 'Blue Bay Hills', ar: 'بلو باي هيلز' } },
+    propertyType: 'villa', priceEgp: 24_000_000, areaSqm: 300, bedrooms: 4, landAreaSqm: 400,
+    finishing: { en: 'Fully finished', ar: 'تشطيب كامل' }, deliveryYear: 2030,
+    coordinates: { latitude: 30.825, longitude: 28.865 }, paymentPlans: [plan10Years], photos: [stockVillaPhoto, coastalPhoto], synthetic: true,
   },
 ] as const satisfies readonly InventoryProperty[];
 

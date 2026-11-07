@@ -12,11 +12,13 @@ The demo opens in Arabic for visitors without a saved language preference, using
 
 - Use the single chat composer to answer the location, budget, and area questions one at a time.
 - Sara searches the bundled sample catalogue and shows at most one closest match, clearly labelled as illustrative. Location, price, area, and payment preference are disclosed in stages. Cash selection does not reveal installment-plan terms.
-- After reviewing a sample property, you can confirm, explore another option, give a reason it is unsuitable, or request synthetic example photos.
-- The toolbar switches the right-side panel between the map and analytics. The map is replaced in that panel while Analysis is open; the chat/composer stays visible and the transcript remains intact.
+- The catalogue includes ten additional searchable units: three in Alexandria, three in Cairo, and four across Giza/West Cairo and the North Coast. Their synthetic details are available to the no-key model demo and map.
+- Click a property marker once to replace the map work surface with a full unit-detail view: photo gallery, price, area, bedrooms, finishing, delivery, and illustrative payment terms. Use Back to map to return. The demo model can focus/open the same detail view when it finds a unit.
+- After reviewing a sample property, you can confirm, explore another option, give a reason it is unsuitable, or request demo photos.
+- The Analysis toolbar opens a full-viewport professional dashboard in a new browser tab, with the same dark visual system, period filters, KPI cards, charts, hot properties/locations, payment preferences, and rejection reasons. The original chat tab stays open and unchanged.
 - The detailed Egypt road map is bundled OpenStreetMap SVG data with an on-map contributor/ODbL credit. Bilingual governorate outlines, place labels, smooth animated zoom/pan, selection focus, and catalogue drill-down are local and work offline; reduced-motion preferences are respected.
 - Selecting a mapped place attaches it to the user’s chat message. In the no-key demo, choosing or typing a city/area in chat also zooms and drills the map; when the demo returns a sample property, its building marker is focused and highlighted. Live-agent tool directives can do the same. The illustrated property inventory is explicitly labeled and is not live market data.
-- The analytics panel keeps its content scrollable on smaller screens but hides the visible scrollbar.
+- The full Analysis page scrolls naturally when needed; its dashboard cards reflow for smaller screens without changing the original workspace tab.
 - Use “Start another search” in the chat after a demo flow is complete to restart in place.
 
 ## Static-hosting and API-key safety
@@ -35,4 +37,4 @@ npm run verify
 
 ## Data and map attribution
 
-Analytics and inventory are deterministic fixtures for demonstration and testing. The road basemap is the bundled OpenStreetMap SVG at `public/maps/egypt-openstreetmap.svg`; the app credits OpenStreetMap contributors and links to the ODbL notice inside the map. Governorate paths come from the user-supplied map archive and are bundled in `data/egyptGovernorates.json`. Natural Earth geometry remains a local geographic reference for catalogue projection in `data/egypt.geo.json`. No tile server or external geocoder is used at runtime.
+Analytics and inventory are deterministic fixtures for demonstration and testing. The road basemap is the bundled OpenStreetMap SVG at `public/maps/egypt-openstreetmap.svg`; the app credits OpenStreetMap contributors and links to the ODbL notice inside the map. Governorate paths come from the user-supplied map archive and are bundled in `data/egyptGovernorates.json`. Natural Earth geometry remains a local geographic reference for catalogue projection in `data/egypt.geo.json`. No tile server or external geocoder is used at runtime. Selected-unit stock photos from Pexels are bundled locally for offline display; each stock image links to its source from the unit detail view, and is labelled illustrative rather than a photo of the actual sample unit.

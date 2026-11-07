@@ -5,6 +5,7 @@ import { EGYPT_MAP_VIEWBOX, EGYPT_LOCATION_MARKERS, EGYPT_PROPERTY_MARKERS, proj
 import { INVENTORY, type InventoryProperty, type LocalizedText } from "../data/catalogue";
 import governorates from "../data/egyptGovernorates.json";
 import { useApp, type MapSelection } from "../context/AppContext";
+import { PropertyDetailView } from "./PropertyDetailView";
 
 const MAP_WIDTH = 598;
 const MAP_HEIGHT = 548;
@@ -88,7 +89,6 @@ export const EgyptMapView: React.FC = () => {
   const properties = useMemo(() => EGYPT_PROPERTY_MARKERS.filter((marker) =>
     marker.cityId === cityId && marker.districtId === districtId && marker.communityId === communityId,
   ), [cityId, districtId, communityId]);
-  const visibleLocations = !cityId ? cities : !districtId ? districts : !communityId ? communities : [];
   const currentLocation = [...cities, ...districts, ...communities].find((marker) =>
     marker.cityId === cityId && (!districtId || marker.districtId === districtId) && (!communityId || marker.communityId === communityId),
   );
@@ -357,7 +357,9 @@ export const EgyptMapView: React.FC = () => {
 
   const visiblePropertyMarkers = properties.map((marker, index) => propertyMarker(marker, index));
   const selectedProperty = propertyId ? PROPERTIES_BY_ID.get(propertyId) : null;
-  const citiesForMap = cityId ? visibleLocations : [];
+  if (selectedProperty) {
+    return <PropertyDetailView property={selectedProperty} onBack={() => setPropertyId(null)} />;
+  }
   const secondaryPlaces = !cityId ? MAJOR_PLACES : [];
   const coordsLabel = zoom.toFixed(1).replace(/\.0$/, "");
 
@@ -388,7 +390,6 @@ export const EgyptMapView: React.FC = () => {
               })}
             </g>
             {!cityId ? secondaryPlaces.map(placeLabel) : null}
-            {citiesForMap.map(locationMarker)}
             {cityId && !districtId ? districts.map(locationMarker) : null}
             {districtId && !communityId ? communities.map(locationMarker) : null}
             {communityId ? visiblePropertyMarkers : null}
