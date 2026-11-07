@@ -63,6 +63,16 @@ const nameIn = (value: LocalizedText, language: "en" | "ar") => value[language];
 const markerPoint = (coordinates: { latitude: number; longitude: number }) =>
   projectEgyptCoordinate(coordinates.latitude, coordinates.longitude, { ...EGYPT_MAP_VIEWBOX, width: MAP_WIDTH, height: MAP_HEIGHT, padding: 8 });
 
+const paintCompositorTransform = (svg: SVGSVGElement, view: { zoom: number; pan: { x: number; y: number } }) => {
+  const x = view.pan.x * svg.clientWidth / MAP_WIDTH;
+  const y = view.pan.y * svg.clientHeight / MAP_HEIGHT;
+  svg.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${view.zoom})`;
+};
+const settleVectorTransform = (svg: SVGSVGElement | null, group: SVGGElement | null, view: { zoom: number; pan: { x: number; y: number } }) => {
+  group?.setAttribute("transform", `translate(${view.pan.x} ${view.pan.y}) scale(${view.zoom})`);
+  if (svg) svg.style.transform = "translate3d(0px, 0px, 0px) scale(1)";
+};
+
 export const EgyptMapView: React.FC = () => {
   const { language, vizSelection, setVizSelection, mapDirective } = useApp();
   const [cityId, setCityId] = useState<string | null>(null);
@@ -77,6 +87,7 @@ export const EgyptMapView: React.FC = () => {
   const initialView = { zoom: 1, pan: { x: 0, y: 0 } };
   const viewRef = useRef(initialView);
   const targetViewRef = useRef(initialView);
+  const transformGroupRef = useRef<SVGGElement | null>(null);
   const zoomLabelRef = useRef("1");
   const labelsVisibleRef = useRef(false);
   const animationFrameRef = useRef<number | null>(null);
@@ -108,23 +119,23 @@ export const EgyptMapView: React.FC = () => {
     const paint = (current: typeof target) => {
       const svg = svgRef.current;
       if (!svg) return;
-      // Transform the whole SVG as a compositor layer; changing an inner SVG group
-      // forces the detailed map to repaint on every frame and feels sluggish.
-      const x = current.pan.x * svg.clientWidth / MAP_WIDTH;
-      const y = current.pan.y * svg.clientHeight / MAP_HEIGHT;
-      svg.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${current.zoom})`;
+      // Animate a compositor layer, then hand the final view back to the vector SVG
+      // so labels and roads regain full detail instead of staying bitmap-scaled.
+      paintCompositorTransform(svg, current);
     };
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     if (reducedMotion) {
       if (animationFrameRef.current !== null) window.cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
       viewRef.current = target;
-      paint(target);
+      settleVectorTransform(svgRef.current, transformGroupRef.current, target);
       return;
     }
-    // Keep one spring-like animation alive and retarget it on wheel events. This avoids
-    // cancelling/restarting React renders on every trackpad tick, which caused stutter.
+    // Keep one spring-like animation alive and retarget it on wheel events. The detailed
+    // SVG is promoted once, not repainted by React or the browser on every input tick.
     if (animationFrameRef.current !== null) return;
+    transformGroupRef.current?.setAttribute("transform", "translate(0 0) scale(1)");
+    paint(viewRef.current);
     let previousTime = 0;
     const animate = (now: number) => {
       const elapsed = previousTime ? Math.min((now - previousTime) / 1000, 0.05) : 1 / 60;
@@ -143,10 +154,11 @@ export const EgyptMapView: React.FC = () => {
         && Math.abs(latestTarget.pan.x - next.pan.x) < 0.08
         && Math.abs(latestTarget.pan.y - next.pan.y) < 0.08;
       viewRef.current = settled ? latestTarget : next;
-      paint(viewRef.current);
       if (settled) {
+        settleVectorTransform(svgRef.current, transformGroupRef.current, latestTarget);
         animationFrameRef.current = null;
       } else {
+        paint(viewRef.current);
         animationFrameRef.current = window.requestAnimationFrame(animate);
       }
     };
@@ -282,6 +294,8 @@ export const EgyptMapView: React.FC = () => {
     if (animationFrameRef.current !== null) window.cancelAnimationFrame(animationFrameRef.current);
     animationFrameRef.current = null;
     targetViewRef.current = viewRef.current;
+    transformGroupRef.current?.setAttribute("transform", "translate(0 0) scale(1)");
+    if (svgRef.current) paintCompositorTransform(svgRef.current, viewRef.current);
     pointerRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY, panX: viewRef.current.pan.x, panY: viewRef.current.pan.y, moved: false };
   };
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
@@ -298,7 +312,7 @@ export const EgyptMapView: React.FC = () => {
       viewRef.current = next;
       targetViewRef.current = next;
       const svg = svgRef.current;
-      if (svg) svg.style.transform = `translate3d(${next.pan.x * svg.clientWidth / MAP_WIDTH}px, ${next.pan.y * svg.clientHeight / MAP_HEIGHT}px, 0) scale(${next.zoom})`;
+      if (svg) paintCompositorTransform(svg, next);
     }
   };
   const handlePointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
@@ -308,6 +322,7 @@ export const EgyptMapView: React.FC = () => {
       window.setTimeout(() => { suppressClickRef.current = false; }, 120);
     }
     pointerRef.current = null;
+    settleVectorTransform(svgRef.current, transformGroupRef.current, viewRef.current);
   };
   const zoomBy = (amount: number) => {
     const current = targetViewRef.current;
@@ -403,7 +418,7 @@ export const EgyptMapView: React.FC = () => {
             <linearGradient id="map-vignette" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#091523" stopOpacity=".1"/><stop offset="1" stopColor="#06101a" stopOpacity=".22"/></linearGradient>
             <filter id="map-marker-shadow" x="-100%" y="-100%" width="300%" height="300%"><feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#02070d" floodOpacity=".75"/></filter>
           </defs>
-          <g>
+          <g ref={transformGroupRef} transform="translate(0 0) scale(1)">
             <image className="map-osm-basemap" href={`${PUBLIC_BASE_PATH}/maps/egypt-openstreetmap.svg`} x="0" y="0" width={MAP_WIDTH} height={MAP_HEIGHT} preserveAspectRatio="none" aria-hidden="true" />
             <rect x="0" y="0" width={MAP_WIDTH} height={MAP_HEIGHT} fill="url(#map-vignette)" pointerEvents="none" />
             <g className="map-governorates" transform={`scale(${ADMIN_SCALE_X} ${ADMIN_SCALE_Y})`}>

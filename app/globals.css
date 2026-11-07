@@ -1248,15 +1248,16 @@ body[dir="rtl"] .main-window.single-chat-layout.right-panel-closed {
 .egypt-map-svg { display:block; width:100%; height:100%; transform-origin:0 0; backface-visibility:hidden; will-change:transform; cursor:grab; touch-action:none; user-select:none; }
 .egypt-map-svg:active { cursor:grabbing; }
 .map-osm-basemap { pointer-events:none; }
-.map-governorate-shape { fill:rgba(94,174,209,.025); stroke:#8ab7cf; stroke-width:.8; stroke-opacity:.52; vector-effect:non-scaling-stroke; cursor:pointer; pointer-events:all; transition:fill .16s,stroke .16s; }
+.map-governorate-shape { fill:rgba(94,174,209,.025); stroke:#8ab7cf; stroke-width:.8; stroke-opacity:.52; vector-effect:non-scaling-stroke; cursor:pointer; pointer-events:all; transition:fill .16s,stroke .16s,filter .16s; }
 .map-governorate-shape:hover,.map-governorate-shape:focus-visible { fill:rgba(56,189,248,.15); stroke:#bae6fd; stroke-opacity:.95; stroke-width:1.6; outline:none; }
-.map-governorate-shape.selected { fill:rgba(56,189,248,.18); stroke:#38bdf8; stroke-opacity:1; stroke-width:1.7; }
+.map-governorate-shape.selected { fill:rgba(167,139,250,.025); stroke:#c4b5fd; stroke-opacity:1; stroke-width:1.8; filter:drop-shadow(0 0 4px rgba(167,139,250,.9)); }
+.map-governorate-shape.selected:hover,.map-governorate-shape.selected:focus-visible { fill:rgba(167,139,250,.055); stroke:#ddd6fe; }
 .map-place,.map-cluster,.map-property { cursor:pointer; outline:none; filter:url(#map-marker-shadow); }
 .map-place:focus-visible circle,.map-cluster:focus-visible circle,.map-property:focus-visible circle { stroke:#fbbf24; stroke-width:2.5; }
 .map-place-dot { fill:#a5b4c4; stroke:#e2e8f0; stroke-width:.7; }
 .map-place-dot.inventory { fill:#38bdf8; stroke:#dff7ff; stroke-width:1.2; }
 .map-place-glow { fill:rgba(56,189,248,.1); stroke:rgba(56,189,248,.25); stroke-width:.7; pointer-events:none; }
-.map-place.selected .map-place-glow { fill:rgba(56,189,248,.3); stroke:#7dd3fc; }
+.map-place.selected .map-place-glow { fill:rgba(167,139,250,.28); stroke:#c4b5fd; filter:drop-shadow(0 0 5px rgba(167,139,250,.8)); }
 .map-place-count,.map-cluster-count { fill:#04111d; font:800 6px/1 sans-serif; }
 .map-place-label,.map-cluster-label { fill:#f3f8fc; font:700 7px/1.1 system-ui,sans-serif; paint-order:stroke; stroke:#06111c; stroke-width:2.2px; stroke-linejoin:round; filter:drop-shadow(0 1px 2px #000); }
 .map-cluster-ring { fill:rgba(56,189,248,.19); stroke:rgba(125,211,252,.65); stroke-width:1; }

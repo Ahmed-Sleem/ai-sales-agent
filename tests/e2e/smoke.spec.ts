@@ -130,6 +130,8 @@ test('the bundled OSM map supports admin-region selection, zoom, and chat attach
   const portSaidRegion = map.locator('.map-governorate-shape[data-governorate-id="EG-PTS"]');
   await portSaidRegion.press('Enter');
   await expect(portSaidRegion).toHaveClass(/selected/);
+  await expect(portSaidRegion).toHaveCSS('fill', 'rgba(167, 139, 250, 0.055)');
+  await expect(portSaidRegion).toHaveCSS('filter', /drop-shadow/);
   await expect(page.locator('#centerPanel').getByText(/Selected on map:/)).toContainText('Port Said');
   await page.getByRole('button', { name: 'Reset map view' }).click();
   await page.waitForTimeout(760);
@@ -170,13 +172,14 @@ test('the bundled OSM map supports admin-region selection, zoom, and chat attach
   expect(wheelMidZoom).toBeGreaterThan(1);
   expect(wheelMidZoom).toBeLessThan(1.4);
   await expect(zoom).toHaveText('1.2×');
-  await page.waitForTimeout(420);
-  const settledTransform = await transformedMap.getAttribute('style');
-  const settledMatch = settledTransform?.match(/translate3d\(([-\d.]+)px, ([-\d.]+)px, 0px\) scale\(([-\d.]+)\)/);
+  await expect(transformedMap).toHaveAttribute('style', 'transform: translate3d(0px, 0px, 0px) scale(1);');
+  const vectorMap = map.locator('g[transform^="translate("]');
+  const settledTransform = await vectorMap.getAttribute('transform');
+  const settledMatch = settledTransform?.match(/translate\(([-\d.]+) ([-\d.]+)\) scale\(([-\d.]+)\)/);
   expect(settledMatch).not.toBeNull();
   const settledZoom = Number(settledMatch?.[3]);
-  const localCursorX = cursor.x - wheelBounds.x - 1;
-  const localCursorY = cursor.y - wheelBounds.y - 1;
+  const localCursorX = (cursor.x - wheelBounds.x - 1) * 598 / (wheelBounds.width - 2);
+  const localCursorY = (cursor.y - wheelBounds.y - 1) * 548 / (wheelBounds.height - 2);
   expect(Math.abs(Number(settledMatch?.[1]) - localCursorX * (1 - settledZoom))).toBeLessThan(2);
   expect(Math.abs(Number(settledMatch?.[2]) - localCursorY * (1 - settledZoom))).toBeLessThan(2);
   await page.locator('.map-place[data-map-location-id="cairo"] circle.map-place-dot').click();
