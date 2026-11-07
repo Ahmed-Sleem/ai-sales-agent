@@ -93,7 +93,7 @@ export const EgyptMapView: React.FC = () => {
     marker.cityId === cityId && (!districtId || marker.districtId === districtId) && (!communityId || marker.communityId === communityId),
   );
 
-  const transitionView = useCallback((targetZoom: number, targetPan: { x: number; y: number }, duration = 420) => {
+  const transitionView = useCallback((targetZoom: number, targetPan: { x: number; y: number }, duration = 720) => {
     const nextZoom = Math.max(1, Math.min(7, targetZoom));
     const target = { zoom: nextZoom, pan: targetPan };
     if (animationFrameRef.current !== null) window.cancelAnimationFrame(animationFrameRef.current);
@@ -109,7 +109,10 @@ export const EgyptMapView: React.FC = () => {
     const animate = (now: number) => {
       if (!startedAt) startedAt = now;
       const progress = Math.min(1, (now - startedAt) / duration);
-      const eased = 1 - Math.pow(1 - progress, 3);
+      // Symmetric ease-in-out keeps zoom calm at the start and settles softly at the end.
+      const eased = progress < 0.5
+        ? 4 * progress * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 3) / 2;
       const current = {
         zoom: from.zoom + (target.zoom - from.zoom) * eased,
         pan: {
@@ -245,7 +248,7 @@ export const EgyptMapView: React.FC = () => {
     transitionView(nextZoom, {
       x: localX - (localX - current.pan.x) * ratio,
       y: localY - (localY - current.pan.y) * ratio,
-    }, 220);
+    }, 400);
   };
   const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
     if (event.button !== 0) return;

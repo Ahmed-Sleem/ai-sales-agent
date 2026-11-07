@@ -117,7 +117,7 @@ test('the bundled OSM map supports admin-region selection, zoom, and chat attach
   await expect(zoom).toHaveText('1×');
   await page.getByRole('button', { name: 'Zoom in' }).click();
   await expect(zoom).not.toHaveText('1×');
-  await page.waitForTimeout(120);
+  await page.waitForTimeout(220);
   const midwayZoom = Number((await zoom.textContent())?.replace('×', '') ?? '0');
   expect(midwayZoom).toBeGreaterThan(1);
   expect(midwayZoom).toBeLessThan(1.4);
