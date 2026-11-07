@@ -1248,7 +1248,7 @@ body[dir="rtl"] .main-window.single-chat-layout.right-panel-closed {
 .egypt-map-svg { display:block; width:100%; height:100%; transform-origin:0 0; backface-visibility:hidden; will-change:transform; cursor:grab; touch-action:none; user-select:none; }
 .egypt-map-svg:active { cursor:grabbing; }
 .map-osm-basemap { pointer-events:none; }
-.map-governorate-shape { fill:rgba(94,174,209,.025); stroke:#8ab7cf; stroke-width:.8; stroke-opacity:.52; vector-effect:non-scaling-stroke; cursor:pointer; pointer-events:all; transition:fill .16s,stroke .16s,filter .16s; }
+.map-governorate-shape { fill:transparent; stroke:transparent; stroke-width:.8; stroke-opacity:0; vector-effect:non-scaling-stroke; cursor:pointer; pointer-events:all; transition:fill .16s,stroke .16s,filter .16s; }
 .map-governorate-shape:hover,.map-governorate-shape:focus-visible { fill:rgba(56,189,248,.15); stroke:#bae6fd; stroke-opacity:.95; stroke-width:1.6; outline:none; }
 .map-governorate-shape.selected { fill:transparent; stroke:#c4b5fd; stroke-opacity:1; stroke-width:1.8; filter:drop-shadow(0 0 4px rgba(167,139,250,.9)); }
 .map-governorate-shape.selected:hover,.map-governorate-shape.selected:focus-visible { fill:transparent; stroke:#ddd6fe; }

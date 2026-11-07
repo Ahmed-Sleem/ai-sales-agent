@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { EGYPT_MAP_VIEWBOX, EGYPT_LOCATION_MARKERS, EGYPT_PROPERTY_MARKERS, projectEgyptCoordinate, type EgyptLocationMarker, type SvgPoint } from "../data/egyptMap";
+import { EGYPT_MAP_VIEWBOX, EGYPT_LOCATION_MARKERS, EGYPT_PROPERTY_MARKERS, projectEgyptCoordinate, type EgyptLocationMarker } from "../data/egyptMap";
 import { INVENTORY, type InventoryProperty, type LocalizedText } from "../data/catalogue";
 import governorates from "../data/egyptGovernorates.json";
 import { useApp, type MapSelection } from "../context/AppContext";
@@ -10,8 +10,9 @@ import { PropertyDetailView } from "./PropertyDetailView";
 const MAP_WIDTH = 598;
 const MAP_HEIGHT = 548;
 const MAX_MAP_ZOOM = 28;
-const DETAIL_ROADS_ZOOM = 8;
+const DETAIL_ROADS_ZOOM = 2;
 const PUBLIC_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+const MAP_ASSET_VERSION = "5";
 const ADMIN_SCALE_X = MAP_WIDTH / 548.58221;
 const ADMIN_SCALE_Y = MAP_HEIGHT / 498.86664;
 const PROPERTIES_BY_ID = new Map<string, InventoryProperty>(INVENTORY.map((property) => [property.id, property] as [string, InventoryProperty]));
@@ -176,10 +177,6 @@ export const EgyptMapView: React.FC = () => {
     };
     animationFrameRef.current = window.requestAnimationFrame(animate);
   }, []);
-  const zoomToPoint = useCallback((point: SvgPoint, scale: number) => {
-    const next = Math.max(1, Math.min(MAX_MAP_ZOOM, scale));
-    transitionView(next, { x: MAP_WIDTH / 2 - point.x * next, y: MAP_HEIGHT / 2 - point.y * next });
-  }, [transitionView]);
   const mapSelectionFor = (id: string, name: string, detail: string, level: MapSelection["level"], coordinates?: { latitude: number; longitude: number }): MapSelection => ({
     id, name, detail, level, ...(coordinates ? { coordinates } : {}),
   });
@@ -195,8 +192,6 @@ export const EgyptMapView: React.FC = () => {
     } else {
       setCityId(marker.cityId); setDistrictId(marker.districtId ?? null); setCommunityId(marker.communityId ?? null);
     }
-    const point = markerPoint(coordinates);
-    zoomToPoint(point, marker.level === "city" ? 20 : marker.level === "district" ? 24 : 26);
     const label = nameIn(marker.name, language);
     setVizSelection(mapSelectionFor(marker.id, label, marker.level, marker.level, coordinates));
   };
@@ -210,7 +205,6 @@ export const EgyptMapView: React.FC = () => {
       return;
     }
     setCityId(null); setDistrictId(null); setCommunityId(null); setPropertyId(null);
-    zoomToPoint(markerPoint(place.coordinates), 20);
     setVizSelection(mapSelectionFor(`place:${place.id}`, nameIn(place.name, language), isArabic ? "مدينة" : "City", "city", place.coordinates));
   };
 
@@ -218,20 +212,15 @@ export const EgyptMapView: React.FC = () => {
     if (suppressClickRef.current) return;
     setPropertyId(property.id);
     setCityId(property.city.id); setDistrictId(property.district.id); setCommunityId(property.community.id);
-    const point = markerPoint(property.coordinates);
-    zoomToPoint(point, 26);
     setVizSelection(mapSelectionFor(property.id, nameIn(property.title, language), `${nameIn(property.community.name, language)} · ${property.areaSqm} m²`, "property", property.coordinates));
   };
 
-  const selectGovernorate = (region: GovernorateShape, pathElement: SVGPathElement) => {
+  const selectGovernorate = (region: GovernorateShape) => {
     if (suppressClickRef.current) return;
-    const bounds = pathElement.getBBox();
-    const point = { x: (bounds.x + bounds.width / 2) * ADMIN_SCALE_X, y: (bounds.y + bounds.height / 2) * ADMIN_SCALE_Y };
     setSelectedGovernorateId(region.id);
     setPropertyId(null); setDistrictId(null); setCommunityId(null);
     const catalogCityId = CATALOG_CITY_BY_GOVERNORATE[region.id];
     setCityId(catalogCityId ?? null);
-    zoomToPoint(point, 12);
     const label = nameIn(region.name, language);
     setVizSelection(mapSelectionFor(`governorate:${region.id}`, label, isArabic ? "محافظة" : "Governorate", "governorate"));
   };
@@ -260,22 +249,15 @@ export const EgyptMapView: React.FC = () => {
         if (focusedProperty) {
           setPropertyId(focusedProperty.id);
           setCityId(focusedProperty.city.id); setDistrictId(focusedProperty.district.id); setCommunityId(focusedProperty.community.id);
-          zoomToPoint(markerPoint(focusedProperty.coordinates), 26);
         } else {
-          const focusedLocation = EGYPT_LOCATION_MARKERS.find((marker) => marker.id === directive.focusId || marker.cityId === directive.focusId || marker.districtId === directive.focusId || marker.communityId === directive.focusId);
-          if (focusedLocation) zoomToPoint(markerPoint(focusedLocation.coordinates), focusedLocation.level === "city" ? 20 : focusedLocation.level === "district" ? 24 : 26);
+          setPropertyId(null);
         }
-      } else if (nextCommunity || nextDistrict || nextCity) {
-        const focus = EGYPT_LOCATION_MARKERS.find((marker) => marker.communityId === nextCommunity && marker.districtId === nextDistrict && marker.cityId === nextCity)
-          ?? EGYPT_LOCATION_MARKERS.find((marker) => marker.districtId === nextDistrict && marker.cityId === nextCity)
-          ?? EGYPT_LOCATION_MARKERS.find((marker) => marker.cityId === nextCity);
-        if (focus) zoomToPoint(markerPoint(focus.coordinates), focus.level === "city" ? 20 : focus.level === "district" ? 24 : 26);
       } else {
-        transitionView(1, { x: 0, y: 0 });
+        setPropertyId(null);
       }
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [mapDirective, transitionView, zoomToPoint]);
+  }, [mapDirective]);
 
   useEffect(() => () => {
     if (animationFrameRef.current !== null) window.cancelAnimationFrame(animationFrameRef.current);
@@ -433,9 +415,9 @@ export const EgyptMapView: React.FC = () => {
             <filter id="map-marker-shadow" x="-100%" y="-100%" width="300%" height="300%"><feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#02070d" floodOpacity=".75"/></filter>
           </defs>
           <g ref={transformGroupRef} className="map-view-transform" transform="translate(0 0) scale(1)">
-            <image className="map-osm-basemap" href={`${PUBLIC_BASE_PATH}/maps/egypt-openstreetmap.svg`} x="0" y="0" width={MAP_WIDTH} height={MAP_HEIGHT} preserveAspectRatio="none" aria-hidden="true" />
+            <image className="map-osm-basemap" href={`${PUBLIC_BASE_PATH}/maps/egypt-openstreetmap.svg?v=${MAP_ASSET_VERSION}`} x="0" y="0" width={MAP_WIDTH} height={MAP_HEIGHT} preserveAspectRatio="none" aria-hidden="true" />
             <rect x="0" y="0" width={MAP_WIDTH} height={MAP_HEIGHT} fill="url(#map-vignette)" pointerEvents="none" />
-            {zoom >= DETAIL_ROADS_ZOOM ? <image className="map-detail-basemap" href={`${PUBLIC_BASE_PATH}/maps/egypt-city-roads.svg`} x="0" y="0" width={MAP_WIDTH} height={MAP_HEIGHT} preserveAspectRatio="none" aria-hidden="true" /> : null}
+            {zoom >= DETAIL_ROADS_ZOOM ? <image className="map-detail-basemap" href={`${PUBLIC_BASE_PATH}/maps/egypt-city-roads.svg?v=${MAP_ASSET_VERSION}`} x="0" y="0" width={MAP_WIDTH} height={MAP_HEIGHT} preserveAspectRatio="none" aria-hidden="true" /> : null}
             <g className="map-governorates" transform={`scale(${ADMIN_SCALE_X} ${ADMIN_SCALE_Y})`}>
               {GOVERNORATE_SHAPES.map((region) => {
                 const selected = selectedGovernorateId === region.id || Boolean(regionCityId(region.id) && cityId === regionCityId(region.id));
@@ -443,8 +425,8 @@ export const EgyptMapView: React.FC = () => {
                   className={`map-governorate-shape ${selected ? "selected" : ""}`}
                   aria-label={`${nameIn(region.name, language)} ${isArabic ? "محافظة" : "governorate"}`}
                   data-governorate-id={region.id}
-                  onClick={(event) => selectGovernorate(region, event.currentTarget)}
-                  onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectGovernorate(region, event.currentTarget); } }}>
+                  onClick={() => selectGovernorate(region)}
+                  onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectGovernorate(region); } }}>
                   <title>{nameIn(region.name, language)}</title>
                 </path>;
               })}
