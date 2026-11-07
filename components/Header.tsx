@@ -16,12 +16,12 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ isMobileSidebarOpen, onToggleMobileSidebar }) => {
   const { language, setLanguage, setIsSettingsOpen, deviceId } = useApp();
   const [isRightPanelClosed, setIsRightPanelClosed] = useState(false);
-  const [isLeftPanelClosed, setIsLeftPanelClosed] = useState(true);
+  const [isLeftPanelClosed, setIsLeftPanelClosed] = useState(false);
 
   useEffect(() => {
     if (!deviceId) return;
     setIsRightPanelClosed(localStorage.getItem(`gpr_layout_${deviceId}_right_closed`) === "true");
-    setIsLeftPanelClosed(localStorage.getItem(`gpr_layout_${deviceId}_left_closed`) !== "false");
+    setIsLeftPanelClosed(localStorage.getItem(`gpr_layout_${deviceId}_left_closed`) === "true");
   }, [deviceId]);
 
   const toggleLeftPanel = () => {
@@ -52,7 +52,7 @@ export const Header: React.FC<HeaderProps> = ({ isMobileSidebarOpen, onToggleMob
       <header className="app-header" id="appHeader">
         <div className="header-tools" role="toolbar" aria-label="Workspace tools">
 
-          {/* Left Panel (Chats/Search) Toggle — NEW, default closed */}
+          {/* Left Panel (Chats/Search) Toggle — always available in the visible toolbar */}
           <button
             className={`tool-btn ${isLeftPanelOpen ? "" : "active-closed"}`}
             id="leftPanelToggleBtn"

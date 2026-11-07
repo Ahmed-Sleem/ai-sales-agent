@@ -67,16 +67,16 @@ function promptFor(state: PropertyDisclosureState, property: InventoryProperty):
     return {
       kind: 'location',
       text: language === 'ar'
-        ? `أقرب اختيار تجريبي مناسب ليك في ${locationText(property, language)}. تحب تعرف السعر؟`
-        : `The closest illustrative match is in ${locationText(property, language)}. Would you like to hear the price?`,
+        ? `الوحدة في ${locationText(property, language)}. تحب تعرف سعرها؟`
+        : `It’s in ${locationText(property, language)}. Would you like to hear the price?`,
     };
   }
   if (state.phase === 'price') {
     return {
       kind: 'price',
       text: language === 'ar'
-        ? `السعر التوضيحي ${formatPrice(property.priceEgp, language)}. تحب تعرف المساحة؟`
-        : `The illustrative price is ${formatPrice(property.priceEgp, language)}. Would you like to hear the area next?`,
+        ? `سعرها ${formatPrice(property.priceEgp, language)}. تحب تعرف المساحة؟`
+        : `The price is ${formatPrice(property.priceEgp, language)}. Would you like to hear the area next?`,
     };
   }
   if (state.phase === 'area') {

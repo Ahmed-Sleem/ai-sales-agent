@@ -103,7 +103,7 @@ describe('staged property disclosure and payment gate', () => {
     const property = INVENTORY[0];
     const location = beginPropertyDisclosure(property.id, 'ar');
     expect(location.prompt.text).toContain(property.city.name.ar);
-    expect(location.prompt.text).toContain('السعر');
+    expect(location.prompt.text).toContain('سعرها');
     expect(questionCount(location)).toBe(1);
     const price = advancePropertyDisclosure(location.state, { type: 'continue' });
     expect(price.prompt.text).toContain('٧٬٢٠٠٬٠٠٠');

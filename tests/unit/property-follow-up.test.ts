@@ -76,13 +76,15 @@ describe('property confirmation, rejection, alternatives, and photos', () => {
     expect(alternative.prompt.quickReplies).toEqual([]);
   });
 
-  it('never returns the rejected property even when it is the only match', () => {
+  it('never returns the rejected exact match and clearly marks the nearest out-of-budget alternative', () => {
     const request: SearchRequest = { cityId: 'cairo', districtId: 'new-cairo', propertyType: 'apartment', maxBudgetEgp: 7_200_000, minAreaSqm: 120 };
     const start = beginPropertyFollowUp(SELECTED, request, 'en');
     const askingReason = answerPropertyFollowUp(start.state, { type: 'explore' });
     const step = answerPropertyFollowUp(askingReason.state, { type: 'reject', reason: 'price' });
-    expect(step.state.phase).toBe('no-alternative');
-    expect(step.prompt.nextPropertyId).toBeUndefined();
+    expect(step.state.phase).toBe('alternative-ready');
+    expect(step.prompt.nextPropertyId).toBe('demo-cairo-apartment-02');
+    expect(step.prompt.nextPropertyIsClosestMatch).toBe(true);
+    expect(step.prompt.nextPropertyId).not.toBe(SELECTED);
   });
 
   it('excludes properties shown in earlier turns, not just the current rejection', () => {
@@ -117,8 +119,11 @@ describe('property confirmation, rejection, alternatives, and photos', () => {
     expect(invalid.prompt.nextPropertyId).toBeUndefined();
   });
 
-  it('reports no alternative instead of fabricating a result', () => {
-    const request: SearchRequest = { cityId: 'cairo', propertyType: 'penthouse', maxBudgetEgp: 10_000_000 };
+  it('reports no alternative instead of fabricating a result when every candidate is excluded', () => {
+    const request: SearchRequest = {
+      cityId: 'cairo', propertyType: 'penthouse', maxBudgetEgp: 10_000_000,
+      excludeIds: INVENTORY.filter((property) => property.city.id === 'cairo').map((property) => property.id),
+    };
     const start = beginPropertyFollowUp(SELECTED, request, 'en');
     const askingReason = answerPropertyFollowUp(start.state, { type: 'explore' });
     const step = answerPropertyFollowUp(askingReason.state, { type: 'reject', reason: 'payment-plan' });

@@ -1,5 +1,5 @@
 import { INVENTORY, INVENTORY_NOTICE, type InventoryProperty } from '../data/catalogue';
-import { searchCatalogue, type SearchRequest } from './catalogueSearch';
+import { searchCatalogue, searchClosestCatalogueMatch, type SearchRequest } from './catalogueSearch';
 import type { QualificationLanguage } from './qualification';
 
 export type RejectionReason = 'price' | 'location' | 'area' | 'payment-plan' | 'other';
@@ -20,6 +20,7 @@ export interface PropertyFollowUpState {
   readonly rejections: readonly RejectionRecord[];
   readonly phase: PropertyFollowUpPhase;
   readonly alternativePropertyId?: string;
+  readonly alternativeIsClosestMatch?: boolean;
 }
 
 export type PropertyFollowUpAction =
@@ -45,6 +46,7 @@ export interface PropertyFollowUpPrompt {
   readonly text: string;
   readonly quickReplies: readonly PropertyFollowUpQuickReply[];
   readonly nextPropertyId?: string;
+  readonly nextPropertyIsClosestMatch?: boolean;
   readonly photos?: readonly DisclosedPhoto[];
 }
 
@@ -134,6 +136,7 @@ function promptFor(state: PropertyFollowUpState): PropertyFollowUpPrompt {
         : `I noted that ${reasonLabel(rejection.reason, state.language)} was the issue. I’ll show you one other illustrative match next.`,
       quickReplies: [],
       nextPropertyId: state.alternativePropertyId,
+      nextPropertyIsClosestMatch: state.alternativeIsClosestMatch ?? false,
     };
   }
   const rejection = state.rejections[state.rejections.length - 1];
@@ -216,8 +219,10 @@ export function answerPropertyFollowUp(
     };
     const rejections = [...state.rejections, rejection];
     const excludeIds = [...new Set([...(state.searchRequest.excludeIds ?? []), ...state.shownPropertyIds])];
-    const result = searchCatalogue({ ...state.searchRequest, excludeIds });
-    const alternative = result.bestMatch;
+    const alternativeRequest = { ...state.searchRequest, excludeIds };
+    const exactAlternative = searchCatalogue(alternativeRequest).bestMatch;
+    const alternative = exactAlternative ?? searchClosestCatalogueMatch(alternativeRequest).bestMatch;
+    const alternativeIsClosestMatch = !exactAlternative && Boolean(alternative);
     const nextState: PropertyFollowUpState = alternative
       ? {
           ...state,
@@ -225,6 +230,7 @@ export function answerPropertyFollowUp(
           rejections,
           shownPropertyIds: [...new Set([...state.shownPropertyIds, alternative.id])],
           alternativePropertyId: alternative.id,
+          alternativeIsClosestMatch,
         }
       : { ...state, phase: 'no-alternative', rejections };
     return { state: nextState, prompt: promptFor(nextState) };

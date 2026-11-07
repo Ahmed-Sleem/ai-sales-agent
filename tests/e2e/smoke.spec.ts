@@ -8,6 +8,13 @@ test('app shell loads without page errors', async ({ page }) => {
   await expect(page.locator('body')).toBeVisible();
   await expect(page.locator('#centerPanel')).toHaveCSS('position', 'relative');
   await expect(page.locator('#centerPanel')).toHaveCSS('z-index', '1');
+  await expect(page.locator('#leftPanel')).toBeVisible();
+  await expect(page.locator('#mainWindow')).not.toHaveClass(/left-panel-closed/);
+  await expect(page.locator('#leftPanelToggleBtn')).toBeVisible();
+  await page.mouse.move(700, 420);
+  await page.waitForTimeout(3200);
+  await expect(page.locator('#leftPanel')).toBeVisible();
+  await expect(page.locator('#leftPanelToggleBtn')).toBeVisible();
   expect(errors).toEqual([]);
   const accessibility = await new AxeBuilder({ page }).analyze();
   expect(accessibility.violations).toEqual([]);
@@ -43,22 +50,46 @@ test('demo uses the existing feed and composer; its setting only changes the sen
 
   const input = page.locator('#chatInput');
   const send = async (text: string) => { await input.fill(text); await page.locator('#sendButton').click(); };
+  await page.evaluate(() => {
+    type WindowWithDemoSnapshots = Window & { __demoSnapshots?: Array<{ typing: boolean; text: string }> };
+    const target = window as WindowWithDemoSnapshots;
+    target.__demoSnapshots = [];
+    const root = document.getElementById('chatMessages');
+    if (!root) return;
+    new MutationObserver(() => {
+      const content = root.querySelector('[data-demo-streaming="true"] .content');
+      if (!content) return;
+      target.__demoSnapshots?.push({
+        typing: Boolean(content.querySelector('.typing-indicator')),
+        text: content.textContent?.trim() ?? '',
+      });
+    }).observe(root, { subtree: true, childList: true, characterData: true });
+  });
   await send('New Cairo');
   await expect(chat.getByText(/maximum budget/i)).toBeVisible();
+  await expect(page.locator('#chatInput')).toBeEnabled();
+  const streamSnapshots = await page.evaluate(() =>
+    (window as Window & { __demoSnapshots?: Array<{ typing: boolean; text: string }> }).__demoSnapshots ?? []
+  );
+  expect(streamSnapshots.some((snapshot) => snapshot.typing)).toBe(true);
+  expect(streamSnapshots.some((snapshot) => snapshot.text.length > 0 && snapshot.text.length < 49)).toBe(true);
   await send('8.5 million EGP');
   await expect(chat.getByText(/interior area/i)).toBeVisible();
   await send('160 square metres');
-  await expect(chat.getByText(/closest illustrative match is Apartment 02/i)).toBeVisible();
+  await expect(chat.getByText(/I found one close match: Apartment 02/i)).toBeVisible();
   await expect(chat.getByText(/Would you like to hear the price/i)).toBeVisible();
+  await expect(page.locator('#chatInput')).toBeEnabled();
   await expect(page.locator('#chatMessages .message')).toHaveCount(8);
 
   const quickReplies = page.getByRole('group', { name: 'Demo quick replies' });
   await quickReplies.getByRole('button', { name: 'Yes, continue' }).click();
-  await expect(chat.getByText(/illustrative price/i)).toBeVisible();
+  await expect(chat.getByText(/The price is/i)).toBeVisible();
   await quickReplies.getByRole('button', { name: 'Yes, continue' }).click();
   await expect(chat.getByText(/prefer to buy in cash/i)).toBeVisible();
   await quickReplies.getByRole('button', { name: 'Installments', exact: true }).click();
   await expect(chat.getByText(/illustrative payment plans/i)).toBeVisible();
+  await expect(chat.getByText(/15% down over 8 years/i)).toBeVisible();
+  await expect(chat.getByText(/20% down over 10 years/i)).toBeVisible();
   await quickReplies.getByRole('button', { name: 'Send demo photos' }).click();
   const demoImage = chat.getByRole('img', { name: /Synthetic demo photo of a bright/i });
   await expect(demoImage).toBeVisible();
@@ -67,10 +98,41 @@ test('demo uses the existing feed and composer; its setting only changes the sen
   await quickReplies.getByRole('button', { name: 'Explore another' }).click();
   await expect(chat.getByText(/main reason this property is not suitable/i)).toBeVisible();
   await quickReplies.getByRole('button', { name: 'price', exact: true }).click();
-  await expect(chat.getByText(/couldn’t find another illustrative match/i)).toBeVisible();
+  await expect(chat.getByText(/nearest other sample property is Apartment 01/i)).toBeVisible();
+  await expect(chat.getByText(/It’s in .*Would you like to hear the price/i)).toBeVisible();
   const chatAccessibility = await new AxeBuilder({ page }).include('#centerPanel').analyze();
   expect(chatAccessibility.violations).toEqual([]);
   expect(aiProviderRequests).toEqual([]);
+});
+
+test('demo continues with a transparent closest listing when Alexandria has no exact 8m/200m match', async ({ page }) => {
+  await page.goto('/');
+  const chat = page.locator('#chatMessages');
+  await expect(chat.getByText(/Peace be upon you\. I'm Sara, the sales manager\./i)).toBeVisible();
+  const input = page.locator('#chatInput');
+  const send = async (text: string) => {
+    await input.fill(text);
+    await page.locator('#sendButton').click();
+  };
+
+  await send('Alexandria');
+  await expect(chat.getByText(/maximum budget/i)).toBeVisible();
+  await expect(input).toBeEnabled();
+  await send('EGP 8 million');
+  await expect(chat.getByText(/interior area/i)).toBeVisible();
+  await expect(input).toBeEnabled();
+  await send('About 200 m²');
+  await expect(chat.getByText(/couldn’t find an exact match for your budget and area/i)).toBeVisible();
+  await expect(chat.getByText(/nearest sample property is Apartment 07/i)).toBeVisible();
+  await expect(input).toBeEnabled();
+
+  const quickReplies = page.getByRole('group', { name: 'Demo quick replies' });
+  await quickReplies.getByRole('button', { name: 'Yes, continue' }).click();
+  await expect(chat.getByText(/The price is/i)).toBeVisible();
+  await expect(input).toBeEnabled();
+  await quickReplies.getByRole('button', { name: 'Yes, continue' }).click();
+  await expect(chat.getByText(/136 m², smaller than the approximate 200 m²/i)).toBeVisible();
+  await expect(input).toBeEnabled();
 });
 
 test('mobile conversation menu opens as a stable drawer and closes through its controls', async ({ page }) => {

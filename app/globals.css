@@ -29,6 +29,7 @@ select {
     --glass-bg-strong: rgba(255,255,255,0.46);
     --glass-border: rgba(255,255,255,0.45);
     --glass-blur: blur(10px) saturate(1.25);
+    --sidebar-surface: rgba(248,249,252,0.94);
     --color-canvas: #020409; /* unified night sky under all glass */
 
     /* ---- Secondary Surface (sidebars) ---- */
@@ -123,6 +124,7 @@ body.dark-mode {
     --glass-bg-strong: rgba(10,13,20,0.60);
     --glass-border: rgba(255,255,255,0.14);
     --glass-blur: blur(10px) saturate(1.2);
+    --sidebar-surface: rgba(13,17,25,0.92);
     --border-soft: rgba(255,255,255,0.08);
     --border-med: rgba(255,255,255,0.14);
     --color-accent: #f0f0f0;
@@ -592,7 +594,7 @@ body[dir="rtl"] .resize-handle {
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--text-inverse-meta);
+    color: var(--text-meta);
 }
 
 .chat-list {
@@ -1740,6 +1742,13 @@ body[dir="rtl"] .main-window.left-panel-closed .panel-left { transform: scaleX(.
 .panel-left { grid-row: 3 / 6 !important; }
 .main-window.right-panel-closed .panel-center { grid-row: 1 / 5 !important; }
 
+/* The conversation menu stays visibly surfaced, matching the app's modal/menu material. */
+.panel-left {
+    background: var(--sidebar-surface) !important;
+    border: 1px solid var(--glass-border) !important;
+    box-shadow: var(--shadow-elevated) !important;
+}
+
 /* visualization window: FULLY transparent (sky shows through), no glass on this one */
 .panel-right { background: transparent !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; box-shadow: none !important; border-color: transparent !important; }
 
@@ -1795,9 +1804,5 @@ body[dir="rtl"] .chat-logo { grid-column: 3; }
 @keyframes lg-float { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-7px) } }
 @keyframes lg-pulse { 0%,100% { opacity: .55 } 50% { opacity: 1 } }
 
-/* auto-retracting button dock: after 3s idle it slides away and the chat
-   window elegantly extends into its space; approaching the area restores it */
-.main-window.dock-hidden { grid-template-rows: var(--title-height) var(--logo-gap) minmax(0, 1fr) var(--gutter) 0px !important; }
-.main-window.dock-hidden .app-header { opacity: 0; transform: translateY(18px) scale(.96); pointer-events: none !important; }
-.main-window.dock-hidden .panel-center { margin-bottom: 4px !important; }
-.app-header { transition: opacity .45s var(--ease-soft), transform .45s var(--ease-soft) !important; }
+/* Keep panel controls visible and keyboard/mouse accessible at all times. */
+.app-header { transition: opacity .25s var(--ease-soft), transform .25s var(--ease-soft) !important; }

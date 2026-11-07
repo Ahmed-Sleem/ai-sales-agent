@@ -1,6 +1,6 @@
-import { INVENTORY, INVENTORY_NOTICE } from '../data/catalogue';
-import { searchCatalogue, type SearchRequest } from './catalogueSearch';
-import { advancePropertyDisclosure, beginPropertyDisclosure, type PropertyDisclosureState } from './propertyDisclosure';
+import { INVENTORY } from '../data/catalogue';
+import { searchCatalogue, searchClosestCatalogueMatch, type SearchRequest } from './catalogueSearch';
+import { advancePropertyDisclosure, beginPropertyDisclosure, type PropertyDisclosureState, type PropertyDisclosureStep } from './propertyDisclosure';
 import { answerPropertyFollowUp, beginPropertyFollowUp, getPropertyFollowUpPrompt, type PropertyFollowUpState, type RejectionRecord } from './propertyFollowUp';
 import { parseDemoInput, type DemoNluResult } from './demoNlu';
 import { answerQualification, beginQualification, type QualificationLanguage, type QualificationState } from './qualification';
@@ -23,6 +23,18 @@ export interface DemoQuickReply {
 
 export type DemoConversationStage = 'qualification' | 'disclosure' | 'follow-up' | 'done';
 
+export const DEMO_MIN_THINKING_MS = 200;
+export const DEMO_MAX_THINKING_MS = 1500;
+const LISTING_NOTE: Record<QualificationLanguage, string> = {
+  en: 'This is an illustrative listing, not a live offer.',
+  ar: 'ده إعلان توضيحي، مش عرض حقيقي.',
+};
+
+export function getDemoThinkingDelay(randomValue = Math.random()): number {
+  const normalized = Math.max(0, Math.min(1, randomValue));
+  return Math.floor(DEMO_MIN_THINKING_MS + normalized * (DEMO_MAX_THINKING_MS - DEMO_MIN_THINKING_MS));
+}
+
 export interface DemoConversationState {
   readonly language: QualificationLanguage;
   readonly stage: DemoConversationStage;
@@ -30,6 +42,7 @@ export interface DemoConversationState {
   readonly disclosure: PropertyDisclosureState | null;
   readonly followUp: PropertyFollowUpState | null;
   readonly searchRequest: SearchRequest | null;
+  readonly closestFallback: boolean;
   readonly shownIds: readonly string[];
   readonly rejections: readonly RejectionRecord[];
 }
@@ -63,6 +76,45 @@ function assistantTurn(content: string, demoPhotos?: readonly DemoConversationPh
   return { content, ...(demoPhotos?.length ? { demoPhotos } : {}) };
 }
 
+function formatEgp(value: number, language: QualificationLanguage): string {
+  return new Intl.NumberFormat(language === 'ar' ? 'ar-EG' : 'en-EG', {
+    style: 'currency', currency: 'EGP', maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function disclosureTextFor(step: PropertyDisclosureStep, state: DemoConversationState): string {
+  const { prompt } = step;
+  const property = INVENTORY.find((item) => item.id === step.state.propertyId);
+  let text = prompt.text;
+
+  if (property && state.closestFallback && state.searchRequest && prompt.kind === 'price'
+    && state.searchRequest.maxBudgetEgp !== undefined && property.priceEgp > state.searchRequest.maxBudgetEgp) {
+    text = state.language === 'ar'
+      ? `سعرها ${formatEgp(property.priceEgp, state.language)}، وهو أعلى من ميزانيتك اللي ذكرتها (${formatEgp(state.searchRequest.maxBudgetEgp, state.language)}). تحب تعرف المساحة؟`
+      : `The price is ${formatEgp(property.priceEgp, state.language)}, above the ${formatEgp(state.searchRequest.maxBudgetEgp, state.language)} budget you mentioned. Would you like to hear the area next?`;
+  }
+
+  if (property && state.closestFallback && state.searchRequest?.minAreaSqm !== undefined && prompt.kind === 'area') {
+    const requestedArea = state.searchRequest.minAreaSqm;
+    const difference = property.areaSqm - requestedArea;
+    if (Math.abs(difference) >= Math.max(10, requestedArea * 0.2)) {
+      text = state.language === 'ar'
+        ? `مساحتها ${new Intl.NumberFormat('ar-EG').format(property.areaSqm)} متر مربع، ${difference > 0 ? 'أكبر' : 'أصغر'} من المساحة التقريبية اللي طلبتها (${new Intl.NumberFormat('ar-EG').format(requestedArea)} متر مربع). تفضل كاش ولا تقسيط؟`
+        : `It’s ${property.areaSqm} m², ${difference > 0 ? 'larger' : 'smaller'} than the approximate ${requestedArea} m² you asked for. Would you prefer cash or installments?`;
+    }
+  }
+
+  if (prompt.kind === 'payment-plans' && prompt.paymentPlans?.length) {
+    const terms = prompt.paymentPlans.map((plan) => state.language === 'ar'
+      ? `مقدم ${new Intl.NumberFormat('ar-EG').format(plan.downPaymentPercent)}٪ وتقسيط على ${new Intl.NumberFormat('ar-EG').format(plan.installmentYears)} سنوات`
+      : `${plan.downPaymentPercent}% down over ${plan.installmentYears} years`);
+    text = state.language === 'ar'
+      ? `${prompt.text} ${terms.join(' أو ')}.`
+      : `${prompt.text} ${terms.join(' or ')}.`;
+  }
+  return text;
+}
+
 export function beginDemoConversation(language: QualificationLanguage): DemoConversationStep {
   const initial = beginQualification(language);
   return {
@@ -73,6 +125,7 @@ export function beginDemoConversation(language: QualificationLanguage): DemoConv
       disclosure: null,
       followUp: null,
       searchRequest: null,
+      closestFallback: false,
       shownIds: [],
       rejections: [],
     },
@@ -135,16 +188,17 @@ export function advanceDemoConversation(
           : 'I need the city, budget, and area before I can search.')],
       };
     }
-    const result = searchCatalogue(request);
-    if (!result.bestMatch) {
+    const exactMatch = searchCatalogue(request).bestMatch;
+    const property = exactMatch ?? searchClosestCatalogueMatch(request).bestMatch;
+    if (!property) {
       return {
         state: { ...state, qualification: step.state, searchRequest: request, stage: 'done' },
         assistantTurns: [assistantTurn(state.language === 'ar'
-          ? 'ملقتش اختيار تجريبي مطابق لتفضيلاتك الحالية، ومش هغيّر شروطك من غير ما أسألك.'
-          : 'I couldn’t find an illustrative match under those preferences, and I won’t change your criteria without asking.')],
+          ? 'مش عندي وحدة تجريبية في المنطقة دي. تحب تفكر في منطقة قريبة؟'
+          : 'I don’t have a sample listing in that area. Would you consider a nearby location?')],
       };
     }
-    const property = result.bestMatch;
+    const closestFallback = !exactMatch;
     const disclosure = beginPropertyDisclosure(property.id, state.language);
     return {
       state: {
@@ -152,13 +206,18 @@ export function advanceDemoConversation(
         qualification: step.state,
         stage: 'disclosure',
         searchRequest: request,
+        closestFallback,
         shownIds: [property.id],
         disclosure: disclosure.state,
       },
       assistantTurns: [
         assistantTurn(state.language === 'ar'
-          ? `أقرب اختيار تجريبي واحد هو ${property.title.ar}. ${INVENTORY_NOTICE.ar}`
-          : `The closest illustrative match is ${property.title.en}. ${INVENTORY_NOTICE.en}`),
+          ? closestFallback
+            ? `ملقتش اختيار مطابق لميزانيتك ومساحتك، لكن أقرب اختيار متاح هو ${property.title.ar}. ${LISTING_NOTE.ar}`
+            : `لقيت اختيار قريب من طلبك: ${property.title.ar}. ${LISTING_NOTE.ar}`
+          : closestFallback
+            ? `I couldn’t find an exact match for your budget and area. The nearest sample property is ${property.title.en}. ${LISTING_NOTE.en}`
+            : `I found one close match: ${property.title.en}. ${LISTING_NOTE.en}`),
         assistantTurn(disclosure.prompt.text),
       ],
     };
@@ -171,7 +230,7 @@ export function advanceDemoConversation(
     }
     const step = advancePropertyDisclosure(state.disclosure, parsed.action);
     if (step.state.phase !== 'complete' || !state.searchRequest) {
-      return { state: { ...state, disclosure: step.state }, assistantTurns: [assistantTurn(step.prompt.text)] };
+      return { state: { ...state, disclosure: step.state }, assistantTurns: [assistantTurn(disclosureTextFor(step, state))] };
     }
     const followUp = beginPropertyFollowUp(
       step.state.propertyId,
@@ -182,7 +241,7 @@ export function advanceDemoConversation(
     );
     return {
       state: { ...state, disclosure: step.state, followUp: followUp.state, stage: 'follow-up' },
-      assistantTurns: [assistantTurn(step.prompt.text), assistantTurn(followUp.prompt.text)],
+      assistantTurns: [assistantTurn(disclosureTextFor(step, state)), assistantTurn(followUp.prompt.text)],
     };
   }
 
@@ -212,12 +271,17 @@ export function advanceDemoConversation(
           disclosure: disclosure.state,
           shownIds: step.state.shownPropertyIds,
           rejections: step.state.rejections,
+          closestFallback: step.prompt.nextPropertyIsClosestMatch ?? false,
         },
         assistantTurns: [
           assistantTurn(step.prompt.text),
           assistantTurn(state.language === 'ar'
-            ? `اختيار تجريبي آخر: ${property.title.ar}. ${INVENTORY_NOTICE.ar}`
-            : `One other illustrative match: ${property.title.en}. ${INVENTORY_NOTICE.en}`),
+            ? step.prompt.nextPropertyIsClosestMatch
+              ? `أقرب اختيار تاني هو ${property.title.ar}، وممكن يكون خارج ميزانيتك أو مساحتك. ${LISTING_NOTE.ar}`
+              : `لقيت اختيار تاني قريب من طلبك: ${property.title.ar}. ${LISTING_NOTE.ar}`
+            : step.prompt.nextPropertyIsClosestMatch
+              ? `The nearest other sample property is ${property.title.en}; it may be outside your budget or area. ${LISTING_NOTE.en}`
+              : `I found another close match: ${property.title.en}. ${LISTING_NOTE.en}`),
           assistantTurn(disclosure.prompt.text),
         ],
       };

@@ -17,7 +17,6 @@ import { useApp } from "../context/AppContext";
 export default function Home() {
   const { language, isReady, deviceId } = useApp();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [dockHidden, setDockHidden] = useState(false);
   const layoutKey = (name: string) => `gpr_layout_${deviceId}_${name}`;
 
   useEffect(() => {
@@ -50,28 +49,6 @@ export default function Home() {
     }
   }, [isReady, deviceId]);
 
-  // Button dock: auto-retracts after 3s; cursor approaching its place restores it.
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = setTimeout(() => setDockHidden(true), 3000);
-    const arm = () => { if (timer) clearTimeout(timer); timer = setTimeout(() => setDockHidden(true), 3000); };
-    const onMove = (e: MouseEvent) => {
-      const chat = document.getElementById("centerPanel");
-      const chatBounds = chat?.getBoundingClientRect();
-      const overChat = chatBounds && e.clientX >= chatBounds.left && e.clientX <= chatBounds.right && e.clientY >= chatBounds.top && e.clientY <= chatBounds.bottom;
-      if (overChat) { if (timer) { clearTimeout(timer); timer = null; } setDockHidden(false); return; }
-      const el = document.querySelector(".app-header");
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      const near = e.clientX >= r.left - 60 && e.clientX <= r.right + 60 && e.clientY >= r.top - 64;
-      if (near) { if (timer) { clearTimeout(timer); timer = null; } setDockHidden(false); }
-      else if (!timer) arm();
-    };
-    const onFocus = () => { if (timer) { clearTimeout(timer); timer = null; } setDockHidden(false); };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("focusin", onFocus);
-    return () => { if (timer) clearTimeout(timer); document.removeEventListener("mousemove", onMove); document.removeEventListener("focusin", onFocus); };
-  }, []);
-
   useEffect(() => {
     document.body.classList.toggle("mobile-sidebar-open", isMobileSidebarOpen);
     document.body.style.overflow = isMobileSidebarOpen ? "hidden" : "";
@@ -92,9 +69,10 @@ export default function Home() {
   }, [isMobileSidebarOpen]);
 
   useEffect(() => {
-    // Left (chats/search) panel starts CLOSED by default (mirror of right viz panel).
+    // Keep chats/search open by default; only restore a user-saved closed state.
     const mw = document.getElementById("mainWindow");
-    if (mw && localStorage.getItem(`gpr_layout_${deviceId}_left_closed`) !== "false") mw.classList.add("left-panel-closed");
+    if (!mw) return;
+    mw.classList.toggle("left-panel-closed", localStorage.getItem(`gpr_layout_${deviceId}_left_closed`) === "true");
   }, [isReady, deviceId]);
 
   if (!isReady) {
@@ -153,11 +131,10 @@ export default function Home() {
     document.addEventListener("mouseup", onMouseUp);
   };
 
-  // Left panel starts CONTRACTED on the very first frame (no open->contract flash):
-  // decide synchronously at render, not in a post-paint effect.
-  const leftClosedInitially = typeof window !== "undefined" && localStorage.getItem(`gpr_layout_${deviceId}_left_closed`) !== "false";
+  // Restore a deliberate closed state, otherwise keep the conversations menu visible from startup.
+  const leftClosedInitially = typeof window !== "undefined" && localStorage.getItem(`gpr_layout_${deviceId}_left_closed`) === "true";
   return (
-    <main className={`main-window${leftClosedInitially ? " left-panel-closed" : ""}${dockHidden ? " dock-hidden" : ""}`} id="mainWindow">
+    <main className={`main-window${leftClosedInitially ? " left-panel-closed" : ""}`} id="mainWindow">
       <NightSky />
       {/* Mobile Drawer Backdrop */}
       <div

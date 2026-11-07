@@ -247,3 +247,37 @@ export function searchCatalogue(request: SearchRequest): CatalogueSearchResult {
 
   return { bestMatch: null, score: null, matchedCount: 0, scannedCount: INVENTORY.length, relaxationsApplied: [], relaxationsAttempted: attempted, errors: [] };
 }
+
+/**
+ * Return the nearest catalogue option within the requested non-numeric constraints.
+ * Numeric preferences are used only to rank candidates, never to silently filter them.
+ * Callers must tell the visitor when the closest option misses a numeric preference.
+ */
+export function searchClosestCatalogueMatch(request: SearchRequest): CatalogueSearchResult {
+  const errors = requestErrors(request);
+  if (errors.length) return { bestMatch: null, score: null, matchedCount: 0, scannedCount: INVENTORY.length, relaxationsApplied: [], relaxationsAttempted: [], errors };
+
+  const hardConstraints: SearchRequest = {
+    ...request,
+    minBudgetEgp: undefined,
+    maxBudgetEgp: undefined,
+    minAreaSqm: undefined,
+    minBedrooms: undefined,
+    minLandAreaSqm: undefined,
+  };
+  const candidates = INVENTORY.filter((property) => matchesRequest(property, hardConstraints));
+  if (!candidates.length) {
+    return { bestMatch: null, score: null, matchedCount: 0, scannedCount: INVENTORY.length, relaxationsApplied: [], relaxationsAttempted: [], errors: [] };
+  }
+
+  const bestMatch = [...candidates].sort((a, b) => compareMatches(a, b, request))[0];
+  return {
+    bestMatch,
+    score: fitScore(bestMatch, request),
+    matchedCount: candidates.length,
+    scannedCount: INVENTORY.length,
+    relaxationsApplied: [],
+    relaxationsAttempted: [],
+    errors: [],
+  };
+}

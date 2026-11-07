@@ -6,14 +6,15 @@
  * 1. Decodes live JSON tokens (`data: {"token": "..."}`) to guarantee zero truncation and zero connected characters.
  * 2. Displays a visible **Cycle Reasoning Log Card (`[ 🔄 TOC Navigation Steps ]`)** right inside the streaming bubble.
  */
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { useApp, ConversationTurn } from "../context/AppContext";
 import { runAgent } from "../lib/agent";
-import { advanceDemoConversation, beginDemoConversation, getDemoQuickReplies, type DemoAssistantTurn, type DemoConversationState, type DemoQuickReply } from "../lib/demoConversation";
+import { advanceDemoConversation, beginDemoConversation, getDemoQuickReplies, getDemoThinkingDelay, type DemoAssistantTurn, type DemoConversationState, type DemoQuickReply } from "../lib/demoConversation";
 
 const PUBLIC_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const createTurnId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 interface ExtendedTurn extends ConversationTurn {
   cycle_logs?: string[];
@@ -78,16 +79,36 @@ export const ChatPanel: React.FC = () => {
   };
 
 
-  const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
-  const appendDemoAssistantTurns = (assistantTurns: readonly DemoAssistantTurn[]) => {
-    assistantTurns.forEach((turn, index) => addTurnToConversation({
-      id: `demo_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 7)}`,
-      role: "assistant",
-      content: turn.content,
-      timestamp: new Date().toISOString(),
-      ...(turn.demoPhotos ? { demoPhotos: [...turn.demoPhotos] } : {}),
-    }));
-  };
+  const streamDemoAssistantTurns = useCallback(async (assistantTurns: readonly DemoAssistantTurn[]) => {
+    for (const turn of assistantTurns) {
+      streamingContentRef.current = "";
+      setStreamingContent("");
+      const tokens = turn.content.match(/\S+\s*/gu) ?? [turn.content];
+      let partial = "";
+      for (let index = 0; index < tokens.length;) {
+        const groupSize = 2 + Math.floor(Math.random() * 3);
+        const group = tokens.slice(index, index + groupSize);
+        index += group.length;
+        partial += group.join("");
+        streamingContentRef.current = partial;
+        setStreamingContent(partial);
+        const lastToken = group[group.length - 1]?.trimEnd() ?? "";
+        const isPunctuation = /[.!?؟،؛,:]$/.test(lastToken);
+        await sleep(isPunctuation ? 90 : 20 + Math.floor(Math.random() * 15));
+      }
+      setStreamingContent(turn.content);
+      await sleep(24);
+      addTurnToConversation({
+        id: createTurnId("demo"),
+        role: "assistant",
+        content: turn.content,
+        timestamp: new Date().toISOString(),
+        ...(turn.demoPhotos ? { demoPhotos: [...turn.demoPhotos] } : {}),
+      });
+      streamingContentRef.current = "";
+      setStreamingContent("");
+    }
+  }, [addTurnToConversation]);
 
   const demoQuickReplies = demoMode && demoSession && demoSessionConversationId === activeConversationId
     ? getDemoQuickReplies(demoSession)
@@ -99,13 +120,11 @@ export const ChatPanel: React.FC = () => {
     const started = beginDemoConversation(language);
     setDemoSession(started.state);
     setDemoSessionConversationId(activeConversationId);
-    started.assistantTurns.forEach((turn, index) => addTurnToConversation({
-      id: `demo_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 7)}`,
-      role: "assistant",
-      content: turn.content,
-      timestamp: new Date().toISOString(),
-    }));
-  }, [demoMode, activeConversationId, demoSessionKey, language, addTurnToConversation]);
+    setIsStreaming(true);
+    void streamDemoAssistantTurns(started.assistantTurns)
+      .catch(() => undefined)
+      .finally(() => setIsStreaming(false));
+  }, [demoMode, activeConversationId, demoSessionKey, language, addTurnToConversation, streamDemoAssistantTurns]);
 
   const handleSend = async (e?: React.FormEvent, quickReply?: DemoQuickReply) => {
     if (e) e.preventDefault();
@@ -139,8 +158,10 @@ export const ChatPanel: React.FC = () => {
 
     if (demoMode) {
       setIsStreaming(true);
+      streamingContentRef.current = "";
+      setStreamingContent("");
       try {
-        await sleep(100);
+        await sleep(getDemoThinkingDelay());
         let session = demoSessionConversationId === activeConversationId ? demoSession : null;
         let openingTurns: readonly DemoAssistantTurn[] = [];
         if (!session) {
@@ -152,16 +173,15 @@ export const ChatPanel: React.FC = () => {
         const step = advanceDemoConversation(session, userText, quickReply?.id);
         setDemoSession(step.state);
         setDemoSessionConversationId(activeConversationId);
-        appendDemoAssistantTurns([...openingTurns, ...step.assistantTurns]);
+        await streamDemoAssistantTurns([...openingTurns, ...step.assistantTurns]);
       } catch {
-        addTurnToConversation({
-          id: createTurnId("turn_demo_error"),
-          role: "assistant",
+        await streamDemoAssistantTurns([{
           content: language === "ar" ? "حصل خطأ في التجربة المحلية. جرّب تاني من فضلك." : "The local demo had a problem. Please try that again.",
-          timestamp: new Date().toISOString(),
-        });
+        }]);
       } finally {
         setIsStreaming(false);
+        streamingContentRef.current = "";
+        setStreamingContent("");
       }
       return;
     }
@@ -401,12 +421,12 @@ export const ChatPanel: React.FC = () => {
         ))}
 
         {isStreaming ? (
-          <div className="message" role="article" aria-label="Message from assistant">
+          <div className="message" role="article" aria-label="Message from assistant" data-demo-streaming={demoMode ? "true" : undefined}>
             <div className="bubble">
               <span className="role-label">{language === "ar" ? "وكيل العقارات" : "The Real Estate Agent"}</span>
               <div className="content">
                 {/* Live status feed — only when thinking log is enabled in Settings */}
-                {showThinkingLog && isStreaming && (
+                {showThinkingLog && isStreaming && !demoMode && (
                   <div className="thinking-log-card" style={{
                     background: "var(--color-slate)", border: "1px solid var(--border-soft)",
                     borderRadius: "var(--radius-sm)",

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { INVENTORY } from '../../data/catalogue';
-import { searchCatalogue } from '../../lib/catalogueSearch';
+import { searchCatalogue, searchClosestCatalogueMatch } from '../../lib/catalogueSearch';
 import { executeTool, TOOL_DEFS, toolListLevel, toolSearchUnits } from '../../lib/agentTools';
 import { AGENT_FINAL_INSTRUCTION, AGENT_SYSTEM_PROMPT } from '../../lib/agentPrompt';
 
@@ -21,6 +21,25 @@ describe('catalogue closest-match search', () => {
     expect(first.bestMatch?.id).toBe('demo-cairo-penthouse-01');
     expect(second.bestMatch?.id).toBe(first.bestMatch?.id);
     expect(second.score).toBe(first.score);
+  });
+
+  it('returns the nearest same-city candidate when no exact budget/area match exists', () => {
+    const request = { cityId: 'giza-west', maxBudgetEgp: 5_000_000, minAreaSqm: 100 };
+    expect(searchCatalogue(request).bestMatch).toBeNull();
+    const closest = searchClosestCatalogueMatch(request);
+    expect(closest.bestMatch).toMatchObject({ id: 'demo-october-apartment-01', priceEgp: 6_750_000, areaSqm: 148 });
+    expect(closest.score).not.toBeNull();
+  });
+
+  it('respects location, qualitative filters, and exclusions while ranking closest candidates', () => {
+    const closest = searchClosestCatalogueMatch({
+      cityId: 'alexandria',
+      maxBudgetEgp: 5_000_000,
+      minAreaSqm: 100,
+      excludeIds: ['demo-alexandria-apartment-01'],
+    });
+    expect(closest.bestMatch?.id).toBe('demo-alexandria-apartment-02');
+    expect(closest.bestMatch?.city.id).toBe('alexandria');
   });
 
   it('does not treat West Cairo as a Cairo city match', () => {
