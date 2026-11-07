@@ -75,6 +75,8 @@ interface AppContextType {
   getActiveAgentKey: () => { key: string; provider: string; model: string } | null;
   isSettingsOpen: boolean;
   setIsSettingsOpen: (open: boolean) => void;
+  demoMode: boolean;
+  setDemoMode: React.Dispatch<React.SetStateAction<boolean>>;
   activeGraphNodeIds: string[];
   setActiveGraphNodeIds: React.Dispatch<React.SetStateAction<string[]>>;
   vizPhase: string;
@@ -145,6 +147,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [activeApiKeyId, setActiveApiKeyId] = useState<string | null>(null);
   const [vaultError, setVaultError] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [demoMode, setDemoMode] = useState<boolean>(true);
   const [activeGraphNodeIds, setActiveGraphNodeIds] = useState<string[]>([]);
   const [vizPhase, setVizPhase] = useState<string>("IDLE");
   const [shortlistedIds, setShortlistedIds] = useState<string[]>([]);
@@ -591,6 +594,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         getActiveAgentKey,
         isSettingsOpen,
         setIsSettingsOpen,
+        demoMode,
+        setDemoMode,
         activeGraphNodeIds,
         vizPhase, setVizPhase, shortlistedIds, setShortlistedIds, rejectedIds, setRejectedIds, focusedPropertyId, setFocusedPropertyId, drillPath, setDrillPath, theme, setTheme, vizColored, setVizColored, vizTransparency, setVizTransparency, vizViewMode, setVizViewMode, showThinkingLog, setShowThinkingLog, vizSelection, setVizSelection,
         setActiveGraphNodeIds,

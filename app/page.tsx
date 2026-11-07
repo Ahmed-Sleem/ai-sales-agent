@@ -78,9 +78,14 @@ export default function Home() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") setIsMobileSidebarOpen(false);
     };
+    const onResize = () => {
+      if (window.innerWidth > 768) setIsMobileSidebarOpen(false);
+    };
     document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", onResize);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", onResize);
       document.body.classList.remove("mobile-sidebar-open");
       document.body.style.overflow = "";
     };
@@ -164,11 +169,14 @@ export default function Home() {
 
       {/* Left Panel — Sidebar (Row 3 / Col 1 on desktop, Drawer on mobile) */}
       <div className="panel panel-left" id="leftPanel" role="complementary" aria-label="Conversation history">
-        <LeftPanel />
+        <LeftPanel onCloseMobileDrawer={() => setIsMobileSidebarOpen(false)} />
       </div>
 
       {/* Header Bar — floating buttons right below the left panel (Row 5 / Col 1) */}
-      <Header />
+      <Header
+        isMobileSidebarOpen={isMobileSidebarOpen}
+        onToggleMobileSidebar={() => setIsMobileSidebarOpen((open) => !open)}
+      />
 
       {/* Left Resize Handle — only side of left panel beside the middle panel */}
       <div

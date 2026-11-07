@@ -11,7 +11,6 @@ import Image from "next/image";
 import { useApp, ConversationTurn } from "../context/AppContext";
 import { runAgent } from "../lib/agent";
 import { advanceDemoConversation, beginDemoConversation, getDemoQuickReplies, type DemoAssistantTurn, type DemoConversationState, type DemoQuickReply } from "../lib/demoConversation";
-import { TREE, cityById } from "../data/hierarchy";
 
 const PUBLIC_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const createTurnId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -23,7 +22,7 @@ interface ExtendedTurn extends ConversationTurn {
 export const ChatPanel: React.FC = () => {
   const {
     conversations, activeConversationId, addTurnToConversation,
-    savedApiKeys, activeApiKeyId, apiProvider, apiModel, language, setActiveGraphNodeIds, deviceId, workflowCycles, setIsSettingsOpen, t, setVizPhase, setShortlistedIds, setRejectedIds, setFocusedPropertyId, drillPath, setDrillPath, vizSelection, setVizSelection, getActiveAgentKey, showThinkingLog
+    savedApiKeys, activeApiKeyId, apiProvider, apiModel, language, setActiveGraphNodeIds, deviceId, workflowCycles, setIsSettingsOpen, t, setVizPhase, setShortlistedIds, setRejectedIds, setFocusedPropertyId, drillPath, setDrillPath, vizSelection, setVizSelection, getActiveAgentKey, showThinkingLog, demoMode
   } = useApp();
 
   const [inputMessage, setInputMessage] = useState("");
@@ -33,7 +32,6 @@ export const ChatPanel: React.FC = () => {
   const [cycleLogs, setCycleLogs] = useState<string[]>([]);
   const [copyConvSuccess, setCopyConvSuccess] = useState(false);
   const [showCopyBtn, setShowCopyBtn] = useState(false);
-  const [demoMode, setDemoMode] = useState(true);
   const [demoSession, setDemoSession] = useState<DemoConversationState | null>(null);
   const [demoSessionConversationId, setDemoSessionConversationId] = useState<string | null>(null);
   const demoSessionKeyRef = useRef<string | null>(null);
@@ -81,13 +79,6 @@ export const ChatPanel: React.FC = () => {
 
 
   const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
-  const [demoRunning, setDemoRunning] = useState(false);
-  const [isDemoHydrated, setIsDemoHydrated] = useState(false);
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => setIsDemoHydrated(true));
-    return () => cancelAnimationFrame(frame);
-  }, []);
-
   const appendDemoAssistantTurns = (assistantTurns: readonly DemoAssistantTurn[]) => {
     assistantTurns.forEach((turn, index) => addTurnToConversation({
       id: `demo_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 7)}`,
@@ -98,24 +89,6 @@ export const ChatPanel: React.FC = () => {
     }));
   };
 
-  const startInteractiveDemo = () => {
-    demoSessionKeyRef.current = demoSessionKey;
-    const started = beginDemoConversation(language);
-    setDemoSession(started.state);
-    setDemoSessionConversationId(activeConversationId);
-    appendDemoAssistantTurns(started.assistantTurns);
-  };
-
-  const toggleDemoMode = () => {
-    if (demoMode) {
-      setDemoMode(false);
-      return;
-    }
-    setDemoMode(true);
-    if (!demoSession || demoSessionConversationId !== activeConversationId) startInteractiveDemo();
-  };
-
-  const restartInteractiveDemo = () => startInteractiveDemo();
   const demoQuickReplies = demoMode && demoSession && demoSessionConversationId === activeConversationId
     ? getDemoQuickReplies(demoSession)
     : [];
@@ -134,51 +107,8 @@ export const ChatPanel: React.FC = () => {
     }));
   }, [demoMode, activeConversationId, demoSessionKey, language, addTurnToConversation]);
 
-  const runDemoConversation = async () => {
-    if (demoRunning) return; setDemoRunning(true);
-    const say = (role: "user" | "assistant", content: string, logs?: string[]) =>
-      addTurnToConversation({ id: `demo_${Date.now()}_${Math.random()}`, role, content, timestamp: new Date().toISOString(), cycle_logs: logs } as any);
-    try {
-      setDrillPath([]); setVizPhase("IDLE"); setRejectedIds([]); setShortlistedIds([]); setFocusedPropertyId(null); setActiveGraphNodeIds([]);
-      say("user", "Hi, I'm looking for a home for my family in Egypt. Where should we start?");
-      await sleep(700); setVizPhase("THINKING");
-      for (const c of TREE) { setActiveGraphNodeIds([c.id]); await sleep(300); }
-      setActiveGraphNodeIds([]);
-      say("assistant", "Hi, I’m Sara. Which area in Egypt are you interested in?");
-      await sleep(600);
-      say("user", "Cairo, preferably New Cairo.");
-      await sleep(500); setVizPhase("THINKING"); setDrillPath(["cairo"]); await sleep(900);
-      setActiveGraphNodeIds(["new-cairo"]); await sleep(400); setDrillPath(["cairo", "new-cairo"]); setActiveGraphNodeIds([]); await sleep(500);
-      say("assistant", "New Cairo, got it. What budget range works for you?");
-      await sleep(450);
-      say("user", "Around 8.5 million EGP.");
-      await sleep(450);
-      say("assistant", "And what interior area would you prefer?");
-      await sleep(450);
-      say("user", "About 160 square metres.");
-      await sleep(500); setVizPhase("NARROWING");
-      say("assistant", "I found one closest synthetic match: Apartment 02 in New Cairo. Would you like me to share the price?");
-      await sleep(450);
-      say("user", "Yes, please.");
-      say("assistant", "The illustrative demo price is 8.45 million EGP. Would you like its area next?");
-      await sleep(450);
-      say("user", "Yes.");
-      say("assistant", "It is 165 m². Would you like the bedroom count?");
-      await sleep(450);
-      say("user", "Yes.");
-      say("assistant", "It has three bedrooms. Would you prefer cash or an installment plan?");
-      await sleep(450);
-      say("user", "An installment plan.");
-      say("assistant", "Illustrative plan: 15% down, over 8 years. Would you like to explore another option or confirm this one?");
-      await sleep(600); setDrillPath(["cairo", "new-cairo", "sample-east-01"]); setVizPhase("THINKING"); await sleep(700);
-      setVizPhase("SHORTLIST"); setShortlistedIds(["demo-cairo-apartment-02"]); setActiveGraphNodeIds(["demo-cairo-apartment-02"]); setFocusedPropertyId("demo-cairo-apartment-02");
-    } finally { setDemoRunning(false); }
-  };
-  const resetDemo = () => { setDrillPath([]); setVizPhase("IDLE"); setRejectedIds([]); setShortlistedIds([]); setFocusedPropertyId(null); setActiveGraphNodeIds([]); };
-
   const handleSend = async (e?: React.FormEvent, quickReply?: DemoQuickReply) => {
     if (e) e.preventDefault();
-    if (demoRunning) return;
     if (isStreaming) {
       abortControllerRef.current?.abort();
       return;
@@ -563,37 +493,10 @@ export const ChatPanel: React.FC = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="chat-demo-dock" role="group" aria-label={language === "ar" ? "أدوات المحادثة والعرض التجريبي" : "Chat and demo controls"}>
-        <button type="button" data-demo-ready={isDemoHydrated ? "true" : "false"} onClick={runDemoConversation} disabled={demoRunning || !isDemoHydrated} title={language === "ar" ? "تشغيل محادثة توضيحية داخل سجل المحادثة" : "Play a scripted walkthrough in the shared chat transcript"}>
-          {demoRunning ? "▶ Playing…" : language === "ar" ? "▶ تشغيل العرض المسجل" : "▶ Play demo conversation"}
-        </button>
-        <button type="button" className="chat-dock-secondary" onClick={resetDemo}>
-          {language === "ar" ? "↺ إعادة ضبط المدينة" : "↺ Reset 3D city"}
-        </button>
-        <button
-          id="demoModeToggle"
-          type="button"
-          role="switch"
-          aria-label={language === "ar" ? "وضع المحادثة التجريبية" : "Demo mode"}
-          aria-checked={demoMode}
-          className={`chat-demo-toggle${demoMode ? " is-on" : ""}`}
-          onClick={toggleDemoMode}
-          disabled={isStreaming || demoRunning}
-          title={language === "ar" ? "يستخدم بيانات تجريبية محلية ولا يحتاج مفتاح API" : "Uses local synthetic data; no API key required"}
-        >
-          <span className="chat-demo-toggle-track" aria-hidden="true"><span /></span>
-          <span>{language === "ar" ? `وضع التجربة: ${demoMode ? "مفعّل" : "متوقف"}` : `Demo mode: ${demoMode ? "ON" : "OFF"}`}</span>
-        </button>
-        {demoMode && demoSession?.stage === "done" ? (
-          <button type="button" className="chat-dock-secondary" onClick={restartInteractiveDemo}>
-            {language === "ar" ? "إعادة بدء التجربة" : "Restart demo"}
-          </button>
-        ) : null}
-      </div>
       {demoMode && demoQuickReplies.length > 0 ? (
         <div className="chat-demo-quick-replies" role="group" aria-label={language === "ar" ? "اختيارات سريعة للتجربة" : "Demo quick replies"}>
           {demoQuickReplies.map((reply) => (
-            <button key={reply.id} type="button" onClick={() => { void handleSend(undefined, reply); }} disabled={isStreaming || demoRunning}>
+            <button key={reply.id} type="button" onClick={() => { void handleSend(undefined, reply); }} disabled={isStreaming}>
               {reply.label}
             </button>
           ))}
@@ -639,7 +542,7 @@ export const ChatPanel: React.FC = () => {
                 handleSend();
               }
             }}
-            disabled={isStreaming || demoRunning}
+            disabled={isStreaming}
             aria-label="Type your question"
             autoComplete="off"
             rows={1}
@@ -647,7 +550,7 @@ export const ChatPanel: React.FC = () => {
           <button
             className="send-btn composer-send"
             id="sendButton"
-            disabled={demoRunning || (!isStreaming && !inputMessage.trim())}
+            disabled={!isStreaming && !inputMessage.trim()}
             aria-label={isStreaming ? "Stop generation" : "Send message"}
             title={isStreaming ? (language === "ar" ? "إيقاف التوليد" : "Stop Generation") : (language === "ar" ? "إرسال الاستفسار" : "Send Query")}
             type="submit"

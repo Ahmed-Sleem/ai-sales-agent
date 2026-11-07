@@ -112,8 +112,8 @@ export function advanceDemoConversation(
     return {
       state,
       assistantTurns: [assistantTurn(state.language === 'ar'
-        ? 'انتهى البحث التجريبي. اضغط «إعادة بدء التجربة» لبدء محادثة جديدة.'
-        : 'This demo run is complete. Select “Restart demo” to begin a new conversation.')],
+        ? 'انتهى العرض التجريبي. ابدأ محادثة جديدة لتجربة أخرى.'
+        : 'This demo is complete. Start a new conversation to try it again.')],
     };
   }
 

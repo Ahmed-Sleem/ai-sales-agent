@@ -20,7 +20,7 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const {
     savedApiKeys, activeApiKeyId, addSavedApiKey, deleteSavedApiKey, selectSavedApiKey,
-    workflowCycles, setWorkflowCycles, deviceId, language, t, vaultError, vizColored, setVizColored, vizTransparency, setVizTransparency, vizViewMode, setVizViewMode, showThinkingLog, setShowThinkingLog
+    workflowCycles, setWorkflowCycles, deviceId, language, t, vaultError, vizColored, setVizColored, vizTransparency, setVizTransparency, vizViewMode, setVizViewMode, showThinkingLog, setShowThinkingLog, demoMode, setDemoMode
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<"api" | "workflow" | "viz">("api");
@@ -248,6 +248,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               </svg>
             </button>
           </div>
+        </div>
+
+        <div className="settings-demo-row" role="group" aria-label={language === "ar" ? "إعداد وضع التجربة" : "Demo settings"}>
+          <div className="settings-demo-copy">
+            <span className="settings-demo-title">{language === "ar" ? "وضع التجربة" : "Demo mode"}</span>
+            <span className="settings-demo-description">
+              {language === "ar" ? "استخدم بيانات محلية توضيحية دون مفتاح API." : "Use local illustrative data; no API key required."}
+            </span>
+          </div>
+          <button
+            id="demoModeToggle"
+            type="button"
+            role="switch"
+            aria-label={language === "ar" ? "وضع التجربة" : "Demo mode"}
+            aria-checked={demoMode}
+            className={`settings-demo-switch${demoMode ? " is-on" : ""}`}
+            onClick={() => setDemoMode(!demoMode)}
+            title={language === "ar" ? "تبديل وضع المحادثة التجريبية" : "Toggle deterministic no-key demo mode"}
+          >
+            <span className="settings-demo-track" aria-hidden="true"><span /></span>
+            <span>{demoMode ? (language === "ar" ? "مفعّل" : "ON") : (language === "ar" ? "متوقف" : "OFF")}</span>
+          </button>
         </div>
 
         {/* Tab Body — strictly no scrollbars! */}

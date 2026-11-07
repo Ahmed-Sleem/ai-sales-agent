@@ -8,7 +8,11 @@
 import React, { useState } from "react";
 import { useApp } from "../context/AppContext";
 
-export const LeftPanel: React.FC = () => {
+interface LeftPanelProps {
+  onCloseMobileDrawer: () => void;
+}
+
+export const LeftPanel: React.FC<LeftPanelProps> = ({ onCloseMobileDrawer }) => {
   const { conversations, activeConversationId, setActiveConversationId, createConversation, deleteConversation, deleteAllConversations, language, t } = useApp();
   const [searchTerm, setSearchTerm] = useState("");
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
@@ -122,19 +126,22 @@ export const LeftPanel: React.FC = () => {
             <div
               key={conv.id}
               onClick={() => {
-                if (conv.id === activeConversationId) return;
+                if (conv.id === activeConversationId) {
+                  onCloseMobileDrawer();
+                  return;
+                }
                 const activeConv = conversations.find(c => c.id === activeConversationId);
                 if (activeConv && activeConv.turns.length === 0) {
                   setRemovingEmptyId(activeConv.id);
                   window.setTimeout(() => {
                     setActiveConversationId(conv.id);
                     setRemovingEmptyId(null);
-                    document.body.classList.remove("mobile-sidebar-open");
+                    onCloseMobileDrawer();
                   }, 220);
                   return;
                 }
                 setActiveConversationId(conv.id);
-                document.body.classList.remove("mobile-sidebar-open");
+                onCloseMobileDrawer();
               }}
               className={`chat-item ${isSelected ? "active" : ""} ${removingEmptyId === conv.id ? "removing-empty" : ""}`}
               role="listitem"

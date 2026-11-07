@@ -8,7 +8,12 @@
 import React, { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext";
 
-export const Header: React.FC = () => {
+interface HeaderProps {
+  isMobileSidebarOpen: boolean;
+  onToggleMobileSidebar: () => void;
+}
+
+export const Header: React.FC<HeaderProps> = ({ isMobileSidebarOpen, onToggleMobileSidebar }) => {
   const { language, setLanguage, setIsSettingsOpen, deviceId } = useApp();
   const [isRightPanelClosed, setIsRightPanelClosed] = useState(false);
   const [isLeftPanelClosed, setIsLeftPanelClosed] = useState(true);
@@ -20,6 +25,10 @@ export const Header: React.FC = () => {
   }, [deviceId]);
 
   const toggleLeftPanel = () => {
+    if (window.matchMedia("(max-width: 768px)").matches) {
+      onToggleMobileSidebar();
+      return;
+    }
     const mainWindow = document.getElementById("mainWindow");
     if (!mainWindow) return;
     const closed = mainWindow.classList.toggle("left-panel-closed");
@@ -35,6 +44,9 @@ export const Header: React.FC = () => {
     if (deviceId) localStorage.setItem(`gpr_layout_${deviceId}_right_closed`, String(closed));
   };
 
+  const isMobileViewport = typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches;
+  const isLeftPanelOpen = isMobileViewport ? isMobileSidebarOpen : !isLeftPanelClosed;
+
   return (
     <>
       <header className="app-header" id="appHeader">
@@ -42,13 +54,17 @@ export const Header: React.FC = () => {
 
           {/* Left Panel (Chats/Search) Toggle — NEW, default closed */}
           <button
-            className={`tool-btn ${isLeftPanelClosed ? "active-closed" : ""}`}
+            className={`tool-btn ${isLeftPanelOpen ? "" : "active-closed"}`}
             id="leftPanelToggleBtn"
             type="button"
             onClick={toggleLeftPanel}
             aria-label="Toggle chats and search panel"
-            aria-pressed={isLeftPanelClosed}
-            title={isLeftPanelClosed ? (language === "ar" ? "فتح المحادثات والبحث" : "Open Chats & Search Panel") : (language === "ar" ? "إغلاق المحادثات والبحث" : "Close Chats & Search Panel")}
+            aria-pressed={isLeftPanelOpen}
+            aria-controls="leftPanel"
+            aria-expanded={isLeftPanelOpen}
+            title={isLeftPanelOpen
+              ? (language === "ar" ? "إغلاق المحادثات والبحث" : "Close Chats & Search Panel")
+              : (language === "ar" ? "فتح المحادثات والبحث" : "Open Chats & Search Panel")}
           >
             <svg viewBox="0 0 24 24" style={{ width: "16px", height: "16px" }}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zM9 3v18"/>

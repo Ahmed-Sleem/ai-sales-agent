@@ -57,6 +57,6 @@ describe('demo conversation adapter for the shared chat', () => {
     expect(session.state.stage).toBe('done');
     expect(session.assistantTurns[0].content).toMatch(/recorded your interest/i);
     const done = advanceDemoConversation(session.state, 'hello');
-    expect(done.assistantTurns[0].content).toMatch(/Restart demo/i);
+    expect(done.assistantTurns[0].content).toMatch(/new conversation/i);
   });
 });

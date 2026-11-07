@@ -6,37 +6,40 @@ test('app shell loads without page errors', async ({ page }) => {
   page.on('pageerror', (err) => errors.push(String(err)));
   await page.goto('/');
   await expect(page.locator('body')).toBeVisible();
-  // Keep the chat panel above the fixed NightSky canvas; DOM visibility alone misses paint-order bugs.
   await expect(page.locator('#centerPanel')).toHaveCSS('position', 'relative');
   await expect(page.locator('#centerPanel')).toHaveCSS('z-index', '1');
   expect(errors).toEqual([]);
-
   const accessibility = await new AxeBuilder({ page }).analyze();
   expect(accessibility.violations).toEqual([]);
 });
 
-test('demo mode uses the existing chat feed and composer for offline qualification and follow-up', async ({ page }) => {
+test('demo uses the existing feed and composer; its setting only changes the send path', async ({ page }) => {
   const aiProviderRequests: string[] = [];
   page.on('request', (request) => {
     if (/api\.openai\.com|api\.deepseek\.com|generativelanguage\.googleapis\.com|api\.groq\.com/i.test(request.url())) aiProviderRequests.push(request.url());
   });
   await page.goto('/');
-  const dock = page.getByRole('group', { name: 'Chat and demo controls' });
-  const toggle = dock.getByRole('switch', { name: 'Demo mode' });
-  await expect(toggle).toBeVisible();
-  await expect(toggle).toHaveAttribute('aria-checked', 'true');
-  await expect(page.locator('#chatInput')).toHaveCount(1);
-  await expect(page.locator('section[aria-label="Interactive no-key demo"]')).toHaveCount(0);
   const chat = page.locator('#chatMessages');
   await expect(chat.getByText(/Peace be upon you\. I'm Sara, the sales manager\./i)).toBeVisible();
-  await expect(page.locator('#chatInput')).toHaveAttribute('placeholder', /Demo mode/i);
+  await expect(page.locator('#chatInput')).toHaveCount(1);
+  await expect(page.locator('#sendButton')).toHaveCount(1);
+  await expect(page.locator('section[aria-label="Interactive no-key demo"]')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Play demo conversation/i })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Reset 3D city/i })).toHaveCount(0);
+  await expect(page.locator('#demoModeToggle')).toHaveCount(0);
 
+  await page.mouse.move(500, 400);
+  await page.locator('#apiKeyBtn').click();
+  const toggle = page.getByRole('switch', { name: 'Demo mode' });
+  await expect(toggle).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-checked', 'true');
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-checked', 'false');
   await expect(chat.getByText(/Peace be upon you\. I'm Sara, the sales manager\./i)).toBeVisible();
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-checked', 'true');
   await expect(chat.getByText(/Peace be upon you\. I'm Sara, the sales manager\./i)).toHaveCount(1);
+  await page.getByTitle('Close Settings').click();
 
   const input = page.locator('#chatInput');
   const send = async (text: string) => { await input.fill(text); await page.locator('#sendButton').click(); };
@@ -70,42 +73,33 @@ test('demo mode uses the existing chat feed and composer for offline qualificati
   expect(aiProviderRequests).toEqual([]);
 });
 
-test('default demo switch and shared composer fit the mobile chat panel', async ({ page }) => {
+test('mobile conversation menu opens as a stable drawer and closes through its controls', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  const toggle = page.getByRole('switch', { name: 'Demo mode' });
-  const composer = page.locator('#chatInput');
+  await expect(page.locator('#chatInput')).toBeVisible();
+  const toggle = page.locator('#leftPanelToggleBtn');
+  const panel = page.locator('#leftPanel');
   await expect(toggle).toBeVisible();
-  await expect(toggle).toHaveAttribute('aria-checked', 'true');
-  await expect(composer).toBeVisible();
-  await expect(page.locator('#chatMessages').getByText(/Peace be upon you/i)).toBeVisible();
-  const toggleBounds = await toggle.boundingBox();
-  const composerBounds = await composer.boundingBox();
-  expect(toggleBounds).not.toBeNull();
-  expect(composerBounds).not.toBeNull();
-  expect(toggleBounds!.y + toggleBounds!.height).toBeLessThanOrEqual(844);
-  expect(composerBounds!.y + composerBounds!.height).toBeLessThanOrEqual(844);
-  await expect(page.locator('section[aria-label="Interactive no-key demo"]')).toHaveCount(0);
-});
+  await toggle.click();
+  await expect(page.locator('body')).toHaveClass(/mobile-sidebar-open/);
+  await expect(page.locator('#conversationSearch')).toBeVisible();
+  await expect(panel).toHaveCSS('opacity', '1');
+  await page.waitForTimeout(450);
+  const openBounds = await panel.boundingBox();
+  expect(openBounds).not.toBeNull();
+  expect(openBounds!.x).toBeGreaterThanOrEqual(0);
+  await page.waitForTimeout(1200);
+  await expect(page.locator('body')).toHaveClass(/mobile-sidebar-open/);
+  await expect(page.locator('#conversationSearch')).toBeVisible();
 
-test('demo playback uses one current synthetic property and stages its details', async ({ page }) => {
-  await page.goto('/');
-  await expect(page.getByRole('switch', { name: 'Demo mode' })).toHaveAttribute('aria-checked', 'true');
-  const playDemo = page.locator('button[data-demo-ready]');
-  await expect(playDemo).toBeVisible();
-  await expect(playDemo).toHaveAttribute('data-demo-ready', 'true');
-  await expect(playDemo).toBeEnabled();
-  const bounds = await playDemo.boundingBox();
-  if (!bounds) throw new Error('Demo button has no visible bounds');
-  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
-  await expect(page.locator('#mainWindow')).not.toHaveClass(/dock-hidden/);
-  await playDemo.click();
-  await expect(playDemo).toHaveText(/Playing/i);
-
-  await expect(page.getByText(/I found one closest synthetic match: Apartment 02 in New Cairo/i)).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText(/The illustrative demo price is 8.45 million EGP/i)).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText(/It is 165 m²\./i)).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText(/Would you prefer cash or an installment plan/i)).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText(/Illustrative plan: 15% down, over 8 years/i)).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText(/Bamboo III|97 Hills|Palm Hills/i)).toHaveCount(0);
+  await page.locator('#mobileBackdrop').click({ position: { x: 360, y: 400 } });
+  await expect(page.locator('body')).not.toHaveClass(/mobile-sidebar-open/);
+  await toggle.click();
+  await expect(page.locator('body')).toHaveClass(/mobile-sidebar-open/);
+  await page.locator('#chatList .chat-item').first().click();
+  await expect(page.locator('body')).not.toHaveClass(/mobile-sidebar-open/);
+  await toggle.click();
+  await expect(page.locator('body')).toHaveClass(/mobile-sidebar-open/);
+  await page.locator('#mobileBackdrop').click({ position: { x: 360, y: 400 } });
+  await expect(page.locator('body')).not.toHaveClass(/mobile-sidebar-open/);
 });
