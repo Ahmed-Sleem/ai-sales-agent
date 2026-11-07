@@ -19,10 +19,10 @@ export const NightSky: React.FC = () => {
     let raf = 0, stars: Star[] = [];
     const build = () => {
       canvas.width = Math.min(window.innerWidth, 2560); canvas.height = window.innerHeight;
-      const count = Math.round((canvas.width * canvas.height) / 6500); // dense but cheap dots
+      const count = Math.round((canvas.width * canvas.height) / 18000); // sparse, subtle stars over near-black
       stars = Array.from({ length: count }, () => ({
         x: Math.random() * canvas.width, y: Math.random() * canvas.height,
-        r: .4 + Math.random() * 1.1, seed: Math.random(),
+        r: .3 + Math.random() * .65, seed: Math.random(),
         period: 1 + Math.random() * 9,            // 1–10s shine cycle
         phase: Math.random(), shineDur: .12 + Math.random() * .18,
       }));
@@ -39,12 +39,12 @@ export const NightSky: React.FC = () => {
         // random shine: brief bright peak once per period
         const cyc = ((t / s.period) + s.phase) % 1;
         const shine = cyc < s.shineDur ? Math.sin((cyc / s.shineDur) * Math.PI) : 0;
-        const a = Math.min(1, .16 + twinkle * .3 + shine * .75);
+        const a = Math.min(.42, .025 + twinkle * .09 + shine * .30);
         const r = s.r * (1 + shine * 1.6);
         ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(226,236,255,${a.toFixed(3)})`; ctx.fill();
         if (shine > .55) { // tiny cross glint at peak
-          ctx.strokeStyle = `rgba(226,236,255,${((shine - .55) * .9).toFixed(3)})`; ctx.lineWidth = .6;
+          ctx.strokeStyle = `rgba(226,236,255,${((shine - .55) * .32).toFixed(3)})`; ctx.lineWidth = .5;
           const g = r * 4; ctx.beginPath();
           ctx.moveTo(s.x - g, s.y); ctx.lineTo(s.x + g, s.y);
           ctx.moveTo(s.x, s.y - g); ctx.lineTo(s.x, s.y + g); ctx.stroke();
@@ -54,5 +54,5 @@ export const NightSky: React.FC = () => {
     raf = requestAnimationFrame(draw);
     return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", build); };
   }, []);
-  return <canvas ref={ref} aria-hidden="true" style={{ position: "fixed", inset: 0, width: "100vw", height: "100vh", zIndex: 0, pointerEvents: "none", background: "radial-gradient(1200px 800px at 60% 30%, #0a1224 0%, #04070f 55%, #020409 100%)" }} />;
+  return <canvas ref={ref} aria-hidden="true" style={{ position: "fixed", inset: 0, width: "100vw", height: "100vh", zIndex: 0, pointerEvents: "none", background: "radial-gradient(1200px 800px at 60% 30%, #05070b 0%, #020305 58%, #010102 100%)" }} />;
 };
