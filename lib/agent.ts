@@ -1,14 +1,14 @@
 /** Free-agent loop: model calls real catalogue tools (OpenAI-compatible
  *  function calling: DeepSeek / OpenAI / Groq), code executes them locally,
- *  every tool call drives the real visualization + a real status line.
- *  Cycles (Settings) = max tool rounds. */
+ *  tool and UI hooks are optional so the chat can safely run without a globe/status panel.
+ *  A bounded internal maxCycles value limits tool rounds. */
 import { TOOL_DEFS, executeTool, type VizDirective } from "./agentTools";
 import { AGENT_SYSTEM_PROMPT, AGENT_FINAL_INSTRUCTION } from "./agentPrompt";
 
 export interface AgentCreds { key: string; provider: string; model: string; }
 export interface AgentEvents {
-  onStatus: (status: string) => void;
-  onViz: (viz: VizDirective) => void;
+  onStatus?: (status: string) => void;
+  onViz?: (viz: VizDirective) => void;
   onToken?: (full: string) => void;
 }
 const BASE_URLS: Record<string, string> = {
@@ -43,7 +43,7 @@ export async function runAgent(opts: {
 
   const maxCycles = Math.max(1, Math.min(opts.maxCycles || 3, 6));
   for (let cycle = 1; cycle <= maxCycles; cycle++) {
-    events.onStatus(`Cycle ${cycle}/${maxCycles}: agent is thinking…`);
+    events.onStatus?.(`Cycle ${cycle}/${maxCycles}: agent is thinking…`);
     const data = await callModel(true);
     const msg = data?.choices?.[0]?.message;
     if (!msg) throw new Error("Empty response from provider.");
@@ -57,17 +57,17 @@ export async function runAgent(opts: {
     for (const call of toolCalls) {
       let args: any = {};
       try { args = JSON.parse(call.function?.arguments || "{}"); } catch { /* validated inside tools */ }
-      events.onStatus(`Cycle ${cycle}/${maxCycles}: using ${call.function?.name}…`);
+      events.onStatus?.(`Cycle ${cycle}/${maxCycles}: using ${call.function?.name}…`);
       await sleep(650); // let the inspection animation be seen (it reflects this exact tool call)
       const outcome = executeTool(call.function?.name || "", args);
-      events.onStatus(`Cycle ${cycle}/${maxCycles}: ${outcome.status}`);
-      if (outcome.viz) events.onViz(outcome.viz);
+      events.onStatus?.(`Cycle ${cycle}/${maxCycles}: ${outcome.status}`);
+      if (outcome.viz) events.onViz?.(outcome.viz);
       await sleep(650);
       messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(outcome.result) });
     }
   }
   // Cycles exhausted -> one tool-free synthesis call grounded in tool results.
-  events.onStatus("Synthesizing final answer…");
+  events.onStatus?.("Synthesizing final answer…");
   messages.push({ role: "system", content: AGENT_FINAL_INSTRUCTION });
   const data = await callModel(false);
   const text = (data?.choices?.[0]?.message?.content || "").trim();

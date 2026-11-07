@@ -70,6 +70,7 @@ describe('demo conversation adapter for the shared chat', () => {
     session = advanceDemoConversation(session.state, 'Confirm interest', 'confirm');
     expect(session.state.stage).toBe('done');
     expect(session.assistantTurns[0].content).toMatch(/recorded your interest/i);
+    expect(getDemoQuickReplies(session.state)).toEqual([{ id: 'restart-demo', label: 'Start another search' }]);
     const done = advanceDemoConversation(session.state, 'hello');
     expect(done.assistantTurns[0].content).toMatch(/new conversation/i);
   });

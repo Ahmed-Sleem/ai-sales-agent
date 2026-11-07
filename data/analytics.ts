@@ -42,7 +42,7 @@ export const ANALYTICS_DEMO_NOTICE: LocalizedText = {
   en: 'Synthetic demo analytics only. These conversations, leads, preferences, and outcomes are illustrative and are not real client data.',
   ar: 'تحليلات تجريبية اصطناعية فقط. هذه المحادثات والعملاء والتفضيلات والنتائج توضيحية وليست بيانات عملاء حقيقية.',
 };
-export const DEMO_ANALYTICS_AS_OF = '2026-11-05T23:59:59.999Z';
+export const DEMO_ANALYTICS_AS_OF = '2026-11-07T23:59:59.999Z';
 
 const DAYS_AGO = [
   0, 0, 0, 1, 1, 2, 2, 3, 4, 5, 6, 7, 7, 8, 9, 10, 11, 12,
@@ -54,7 +54,7 @@ const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 const TOP_LIST_LIMIT = 5;
 
 function generatedDate(daysAgo: number, index: number): string {
-  return new Date(Date.UTC(2026, 10, 5 - daysAgo, 8 + (index % 9), (index * 11) % 60)).toISOString();
+  return new Date(Date.UTC(2026, 10, 7 - daysAgo, 8 + (index % 9), (index * 11) % 60)).toISOString();
 }
 function stageFor(index: number): DemoLeadStage {
   if (index % 11 === 0) return 'confirmed';

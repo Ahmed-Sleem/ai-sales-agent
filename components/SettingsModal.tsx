@@ -5,8 +5,7 @@
  * Replaces `ApiKeyModal.tsx` per Ahmed's exact requirement (`GAP-GPR-18`):
  * 1. Zero scrollbars inside the modal (`overflow: hidden; max-height: 82vh;`).
  * 2. 100% pure SVG icon action buttons (`with clear bilingual tooltips`).
- * 3. Split tabs: `[ 🔑 API & Models ]` vs `[ ⚡ Workflow Parameters (`إعدادات ومراحل الاسترجاع`) ]`.
- * 4. User-chosen retrieval cycle depth (`1 to 6 cycles where 1 cycle = TOC -> Node Review -> Final Answer/Request Next`).
+ * Tabs keep API configuration separate from visualization preferences.
  */
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom";
@@ -20,10 +19,9 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const {
     savedApiKeys, activeApiKeyId, addSavedApiKey, deleteSavedApiKey, selectSavedApiKey,
-    workflowCycles, setWorkflowCycles, deviceId, language, t, vaultError, vizColored, setVizColored, vizTransparency, setVizTransparency, vizViewMode, setVizViewMode, showThinkingLog, setShowThinkingLog, demoMode, setDemoMode
+    deviceId, language, vaultError, demoMode, setDemoMode, isStaticDemo, localApiKeyDataPresent, clearLocalApiKeyData
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<"api" | "workflow" | "viz">("api");
   const [showAddForm, setShowAddForm] = useState<boolean>(false);
   const [label, setLabel] = useState("");
   const [provider, setProvider] = useState<"deepseek" | "groq" | "openai" | "gemini">("deepseek");
@@ -144,84 +142,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           boxShadow: "var(--shadow-elevated)"
         }}
       >
-        {/* Header Bar with Tabs and SVG Close */}
+        {/* Settings heading and close control */}
         <div style={{
           display: "flex", justifyContent: "space-between", alignItems: "center",
           padding: "16px 20px", borderBottom: "1px solid var(--border-soft)", background: "var(--color-slate)"
         }}>
-          <div style={{ display: "flex", gap: "6px" }}>
-            <button
-              type="button"
-              onClick={() => setActiveTab("api")}
-              style={{
-                background: activeTab === "api" ? "var(--color-paper)" : "transparent",
-                border: activeTab === "api" ? "1px solid var(--border-med)" : "none",
-                borderRadius: "var(--radius-sm)", padding: "8px 14px", fontSize: "13px", fontWeight: 700,
-                color: activeTab === "api" ? "var(--text-primary)" : "var(--text-meta)",
-                cursor: "pointer", display: "flex", alignItems: "center", gap: "6px",
-                transition: "all 0.2s cubic-bezier(0.22, 1, 0.36, 1)",
-                boxShadow: activeTab === "api" ? "var(--shadow-paper)" : "none"
-              }}
-              onMouseEnter={(e) => {
-                if (activeTab !== "api") e.currentTarget.style.background = "var(--color-stone)";
-              }}
-              onMouseLeave={(e) => {
-                if (activeTab !== "api") e.currentTarget.style.background = "transparent";
-              }}
-            >
-              <svg viewBox="0 0 24 24" style={{ width: "15px", height: "15px", stroke: "currentColor", fill: "none", strokeWidth: 2 }}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
-              </svg>
-              <span>{language === "ar" ? "مفاتيح API والنماذج" : "API & Models"}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("workflow")}
-              style={{
-                background: activeTab === "workflow" ? "var(--color-paper)" : "transparent",
-                border: activeTab === "workflow" ? "1px solid var(--border-med)" : "none",
-                borderRadius: "var(--radius-sm)", padding: "8px 14px", fontSize: "13px", fontWeight: 700,
-                color: activeTab === "workflow" ? "var(--text-primary)" : "var(--text-meta)",
-                cursor: "pointer", display: "flex", alignItems: "center", gap: "6px",
-                transition: "all 0.2s cubic-bezier(0.22, 1, 0.36, 1)",
-                boxShadow: activeTab === "workflow" ? "var(--shadow-paper)" : "none"
-              }}
-              onMouseEnter={(e) => {
-                if (activeTab !== "workflow") e.currentTarget.style.background = "var(--color-stone)";
-              }}
-              onMouseLeave={(e) => {
-                if (activeTab !== "workflow") e.currentTarget.style.background = "transparent";
-              }}
-            >
-              <svg viewBox="0 0 24 24" style={{ width: "15px", height: "15px", stroke: "currentColor", fill: "none", strokeWidth: 2 }}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-              </svg>
-              <span>{language === "ar" ? "إعدادات الاسترجاع" : "Workflow Parameters"}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("viz")}
-              style={{
-                background: activeTab === "viz" ? "var(--color-paper)" : "transparent",
-                border: activeTab === "viz" ? "1px solid var(--border-med)" : "none",
-                borderRadius: "var(--radius-sm)", padding: "8px 14px", fontSize: "13px", fontWeight: 700,
-                color: activeTab === "viz" ? "var(--text-primary)" : "var(--text-meta)",
-                cursor: "pointer", display: "flex", alignItems: "center", gap: "6px",
-                transition: "all 0.2s cubic-bezier(0.22, 1, 0.36, 1)",
-                boxShadow: activeTab === "viz" ? "var(--shadow-paper)" : "none"
-              }}
-              onMouseEnter={(e) => { if (activeTab !== "viz") e.currentTarget.style.background = "var(--color-stone)"; }}
-              onMouseLeave={(e) => { if (activeTab !== "viz") e.currentTarget.style.background = "transparent"; }}
-            >
-              <svg viewBox="0 0 24 24" style={{ width: "15px", height: "15px", stroke: "currentColor", fill: "none", strokeWidth: 2 }}>
-                <circle cx="12" cy="12" r="9"/><path strokeLinecap="round" d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
-              </svg>
-              <span>{language === "ar" ? "التصور ثلاثي الأبعاد" : "Visualization"}</span>
-            </button>
-          </div>
-
+          <strong style={{ fontSize: "14px", fontWeight: 800, color: "var(--text-primary)" }}>{language === "ar" ? "الإعدادات" : "Settings"}</strong>
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            {activeTab === "api" && showAddForm && (
+            {showAddForm && (
               <button
                 type="button"
                 onClick={() => setShowAddForm(false)}
@@ -250,6 +178,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           </div>
         </div>
 
+        {isStaticDemo ? (
+          <section className="static-demo-safety" aria-label={language === "ar" ? "الوضع التجريبي الثابت" : "Static demo safety"}>
+            <span className="static-demo-safety-badge">{language === "ar" ? "عرض توضيحي" : "PUBLIC DEMO"}</span>
+            <h3>{language === "ar" ? "هذا إصدار تجريبي ثابت" : "Static demo mode"}</h3>
+            <p>{language === "ar" ? "تعمل نسخة GitHub Pages ببيانات عقارية اصطناعية فقط. لا تُدخل مفاتيح API؛ لا يوجد خادم آمن لحفظها أو تشغيل وكيل مباشر هنا." : "This GitHub Pages build uses synthetic property data only. Do not enter API keys: there is no secure backend here to store them or run a live agent."}</p>
+            {localApiKeyDataPresent ? (
+              <div className="static-demo-key-warning">
+                <span>{language === "ar" ? "توجد مفاتيح قديمة محفوظة في تخزين هذا المتصفح من إصدار سابق." : "Older API-key data remains in this browser from a previous version."}</span>
+                <button type="button" onClick={clearLocalApiKeyData}>{language === "ar" ? "مسح بيانات المفاتيح المحلية" : "Clear saved local API-key data"}</button>
+              </div>
+            ) : null}
+          </section>
+        ) : (
+          <>
         <div className="settings-demo-row" role="group" aria-label={language === "ar" ? "إعداد وضع التجربة" : "Demo settings"}>
           <div className="settings-demo-copy">
             <span className="settings-demo-title">{language === "ar" ? "وضع التجربة" : "Demo mode"}</span>
@@ -272,95 +214,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           </button>
         </div>
 
-        {/* Tab Body — strictly no scrollbars! */}
+        {/* Settings body */}
         <div style={{ padding: "20px", flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-          {activeTab === "viz" ? (
-            /* Tab 3: Visualization — same card/spacing pattern as Workflow */
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px", height: "100%" }}>
-              <div>
-                <h4 style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-primary)", marginBottom: "4px" }}>
-                  {language === "ar" ? "ألوان التصور ثلاثي الأبعاد" : "3D Visualization Colours"}
-                </h4>
-                <p style={{ fontSize: "11px", color: "var(--text-meta)", lineHeight: 1.5 }}>
-                  {language === "ar"
-                    ? "الوضع الافتراضي هيكل أبيض نظيف للكوكب والمباني؛ فعّل الألوان لعرض خامات وألوان النماذج الأصلية."
-                    : "Default is a clean white skeleton planet and buildings. Turn colours on to show the models' original textures and colours."}
-                </p>
-              </div>
-
-              <div style={{ background: "var(--color-stone)", border: "1px solid var(--border-soft)", borderRadius: "var(--radius-md)", padding: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
-                <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-primary)" }}>{language === "ar" ? "نوع العرض:" : "Visualization type:"}</span>
-                <div role="group" aria-label="Visualization type" style={{ display: "flex", gap: "8px" }}>
-                  {([["planet", language === "ar" ? "الكوكب ثلاثي الأبعاد" : "3D Planet"], ["list", language === "ar" ? "قائمة" : "List"]] as const).map(([mode, label]) => (
-                    <button key={mode} type="button" aria-pressed={vizViewMode === mode} onClick={() => setVizViewMode(mode)}
-                      style={{ flex: 1, padding: "9px 10px", borderRadius: "999px", cursor: "pointer", fontSize: "12px", fontWeight: 700,
-                        border: `1.5px solid ${vizViewMode === mode ? "var(--color-accent)" : "var(--border-med)"}`,
-                        background: vizViewMode === mode ? "var(--color-accent)" : "var(--color-paper)",
-                        color: vizViewMode === mode ? "var(--color-accent-contrast)" : "var(--text-primary)" }}>{label}</button>
-                  ))}
-                </div>
-                <div style={{ fontSize: "11px", color: "var(--text-meta)", lineHeight: 1.5 }}>
-                  {vizViewMode === "list"
-                    ? (language === "ar" ? "القائمة مفعلة: الكوكب مغلق، وتظهر العناصر كبطاقات." : "List ON: the globe is closed and places/units show as cards.")
-                    : (language === "ar" ? "الكوكب مفعّل (افتراضي)." : "3D Planet ON (default).")}
-                </div>
-              </div>
-              <div style={{ background: "var(--color-stone)", border: "1px solid var(--border-soft)", borderRadius: "var(--radius-md)", padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-primary)" }}>
-                    {language === "ar" ? "إظهار الألوان:" : "Show colours:"}
-                  </span>
-                  <button
-                    type="button" role="switch" aria-checked={vizColored}
-                    onClick={() => setVizColored(!vizColored)}
-                    title={language === "ar" ? "تبديل ألوان التصور" : "Toggle visualization colours"}
-                    style={{
-                      width: "52px", height: "28px", borderRadius: "999px", padding: "3px",
-                      background: vizColored ? "var(--color-accent)" : "var(--color-paper)",
-                      border: "1px solid var(--border-med)", cursor: "pointer",
-                      display: "flex", justifyContent: vizColored ? "flex-end" : "flex-start", alignItems: "center",
-                      transition: "all 0.2s cubic-bezier(0.22, 1, 0.36, 1)"
-                    }}
-                  >
-                    <span style={{ width: "20px", height: "20px", borderRadius: "50%", background: vizColored ? "var(--color-accent-contrast)" : "var(--text-meta)", transition: "all 0.2s ease" }} />
-                  </button>
-                </div>
-
-                {!vizColored && (
-                  <div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                      <label htmlFor="vizTransparencySlider" style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-primary)" }}>
-                        {language === "ar" ? "شفافية الهيكل:" : "Skeleton transparency:"}
-                      </label>
-                      <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{vizTransparency}%</span>
-                    </div>
-                    <input
-                      id="vizTransparencySlider"
-                      type="range" min={0} max={90} step={1}
-                      value={vizTransparency}
-                      onChange={(e) => setVizTransparency(Number(e.target.value))}
-                      aria-label={language === "ar" ? "شفافية الأجسام ثلاثية الأبعاد" : "3D objects transparency"}
-                      style={{ width: "100%", accentColor: "var(--color-accent)", cursor: "pointer" }}
-                    />
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px", color: "var(--text-meta)", marginTop: "4px" }}>
-                      <span>{language === "ar" ? "معتم" : "Solid"}</span>
-                      <span>{language === "ar" ? "شفاف" : "Transparent"}</span>
-                    </div>
-                  </div>
-                )}
-                {vizColored && (
-                  <div style={{ fontSize: "11px", color: "var(--text-meta)", lineHeight: 1.5 }}>
-                    {language === "ar" ? "منزلق الشفافية متاح في وضع الهيكل فقط — أوقف الألوان لاستخدامه." : "The transparency slider is available in Skeleton mode only — turn colours off to use it."}
-                  </div>
-                )}
-                <div style={{ fontSize: "11px", color: "var(--text-body)", background: "var(--color-paper)", padding: "10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-soft)" }}>
-                  {vizColored
-                    ? (language === "ar" ? "الألوان مفعلة: تظهر خامات النماذج الأصلية والكوكب الأخضر." : "Colours ON: original model textures and the green planet are shown.")
-                    : (language === "ar" ? "الهيكل الأبيض (افتراضي): كل شيء أبيض نظيف كالمخططات." : "Skeleton (default): everything renders clean white, like a blueprint.")}
-                </div>
-              </div>
-            </div>
-          ) : activeTab === "api" ? (
             <div style={{ display: "flex", flexDirection: "column", gap: "14px", height: "100%" }}>
               {/* Saved Keys Header Row */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -612,101 +467,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </form>
               )}
             </div>
-          ) : (
-            /* Tab 2: Workflow Parameters */
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px", height: "100%" }}>
-              <div>
-                <h4 style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-primary)", marginBottom: "4px" }}>
-                  {language === "ar" ? "عدد دورات وتكرارات الاسترجاع (TOC Cycles)" : "Retrieval Exploration Cycles (`max_cycles`)"}
-                </h4>
-                <p style={{ fontSize: "11px", color: "var(--text-meta)", lineHeight: 1.5 }}>
-                  {language === "ar"
-                    ? "يحدد عدد العقد (Nodes) من الفهرس التي يمكن لنموذج الذكاء الاصطناعي استعراض نصها الكامل قبل صياغة الإجابة النهائية أو الرفض القياسي."
-                    : "Determines how many protected TOC nodes the AI model can sequentially inspect before forcing a terminal answer or standard refusal."}
-                </p>
-              </div>
-
-              <div style={{ background: "var(--color-stone)", border: "1px solid var(--border-soft)", borderRadius: "var(--radius-md)", padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-primary)" }}>
-                    {language === "ar" ? "الحد الأقصى للتكرارات:" : "Max TOC Exploration Cycles:"}
-                  </span>
-                  <span style={{ fontSize: "14px", fontWeight: 800, color: "var(--color-accent)", background: "var(--color-slate-raised)", padding: "2px 10px", borderRadius: "12px" }}>
-                    {workflowCycles} {language === "ar" ? "دورات" : "Cycles"}
-                  </span>
-                </div>
-
-                <div style={{ display: "flex", justifyContent: "space-between", gap: "6px" }}>
-                  {[1, 2, 3, 4, 5, 6].map(c => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => setWorkflowCycles(c)}
-                      title={`${c} ${language === "ar" ? "دورة استرجاع" : "Retrieval Cycles"}`}
-                      style={{
-                        flex: 1, padding: "10px 0", borderRadius: "var(--radius-sm)",
-                        background: workflowCycles === c ? "var(--color-accent)" : "var(--color-paper)",
-                        color: workflowCycles === c ? "var(--color-accent-contrast)" : "var(--text-primary)",
-                        border: workflowCycles === c ? "2px solid var(--color-accent)" : "1px solid var(--border-med)",
-                        fontWeight: 700, fontSize: "14px", cursor: "pointer",
-                        transition: "all 0.2s cubic-bezier(0.22, 1, 0.36, 1)",
-                        boxShadow: workflowCycles === c ? "0 4px 12px rgba(0,0,0,0.15)" : "none"
-                      }}
-                      onMouseEnter={(e) => {
-                        if (workflowCycles !== c) {
-                          e.currentTarget.style.background = "var(--color-slate-raised)";
-                          e.currentTarget.style.transform = "translateY(-2px)";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (workflowCycles !== c) {
-                          e.currentTarget.style.background = "var(--color-paper)";
-                          e.currentTarget.style.transform = "translateY(0)";
-                        }
-                      }}
-                    >
-                      {c}
-                    </button>
-                  ))}
-                </div>
-
-                <div style={{ fontSize: "11px", color: "var(--text-body)", background: "var(--color-paper)", padding: "10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-soft)" }}>
-                  {workflowCycles === 1 && (language === "ar" ? "دورة واحدة: يختار النموذج عقدة واحدة من الفهرس ثم يصوغ الإجابة مباشرة أو يرفض." : "1 Cycle: the agent may run 1 tool round (browse/search) then must answer.")}
-                  {workflowCycles === 3 && (language === "ar" ? "3 دورات (الموصى به): يسمح باستعراض حتى 3 عقد متتالية لحل الاستفسارات الإدارية والتشغيلية المتداخلة." : "3 Cycles (Recommended): up to 3 tool rounds — e.g. browse a level, search units, compare — before the final answer.")}
-                  {workflowCycles === 6 && (language === "ar" ? "6 دورات (الحد الأقصى): أقصى عمق استقصاء لأسئلة الهيكل المعقدة." : "6 Cycles (Maximum Depth): Deepest exploration across multiple departments.")}
-                  {workflowCycles !== 1 && workflowCycles !== 3 && workflowCycles !== 6 && (language === "ar" ? `يسمح باستعراض ما يصل إلى ${workflowCycles} عقد دلالية متتالية.` : `Allows inspecting up to ${workflowCycles} distinct TOC nodes sequentially.`)}
-                </div>
-              </div>
-
-              <div style={{ background: "var(--color-stone)", border: "1px solid var(--border-soft)", borderRadius: "var(--radius-md)", padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-primary)" }}>
-                    {language === "ar" ? "إظهار سجل التفكير:" : "Show thinking log:"}
-                  </span>
-                  <button
-                    type="button" role="switch" aria-checked={showThinkingLog}
-                    onClick={() => setShowThinkingLog(!showThinkingLog)}
-                    title={language === "ar" ? "تبديل سجل التفكير" : "Toggle thinking log"}
-                    style={{
-                      width: "52px", height: "28px", borderRadius: "999px", padding: "3px",
-                      background: showThinkingLog ? "var(--color-accent)" : "var(--color-paper)",
-                      border: "1px solid var(--border-med)", cursor: "pointer",
-                      display: "flex", justifyContent: showThinkingLog ? "flex-end" : "flex-start", alignItems: "center",
-                      transition: "all 0.2s cubic-bezier(0.22, 1, 0.36, 1)"
-                    }}
-                  >
-                    <span style={{ width: "20px", height: "20px", borderRadius: "50%", background: showThinkingLog ? "var(--color-accent-contrast)" : "var(--text-meta)", transition: "all 0.2s ease" }} />
-                  </button>
-                </div>
-                <div style={{ fontSize: "11px", color: "var(--text-meta)", lineHeight: 1.5 }}>
-                  {showThinkingLog
-                    ? (language === "ar" ? "ظاهر: تظهر خطوات بحث الوكيل وأدواته داخل المحادثة أثناء العمل وبعده." : "Visible: the agent's search steps and tool calls show in the chat, live and on past messages.")
-                    : (language === "ar" ? "مخفي (افتراضي): لا يظهر أي سجل تفكير في المحادثة؛ تبقى حركة الخريطة فقط." : "Hidden (default): no thinking log appears in the chat; only the map animation shows the work.")}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
+          </>
+        )}
       </div>
     </div>,
     document.body

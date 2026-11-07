@@ -151,6 +151,9 @@ export function getDemoQuickReplies(state: DemoConversationState): readonly Demo
   if (state.stage === 'follow-up' && state.followUp) {
     return getPropertyFollowUpPrompt(state.followUp).quickReplies.map(({ id, label }) => ({ id, label }));
   }
+  if (state.stage === 'done') {
+    return [{ id: 'restart-demo', label: state.language === 'ar' ? 'ابدأ بحثًا جديدًا' : 'Start another search' }];
+  }
   return [];
 }
 

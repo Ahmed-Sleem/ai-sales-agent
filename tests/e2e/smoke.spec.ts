@@ -1,26 +1,98 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-test('app shell loads without page errors', async ({ page }) => {
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('gpr_language', 'en'));
+});
+
+test('new visitors receive the specified Arabic greeting and RTL layout by default', async ({ page }) => {
+  await page.addInitScript(() => localStorage.removeItem('gpr_language'));
+  await page.goto('/');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
+  await expect(page.locator('#chatMessages')).toContainText('وعليكم السلام معاك ساره مسؤلة قسم المبيعات, حضرتك بتدور على ايه بالضبط؟');
+});
+
+test('app shell loads without page errors or a conversations sidebar', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (err) => errors.push(String(err)));
   await page.goto('/');
   await expect(page.locator('body')).toBeVisible();
   await expect(page.locator('#centerPanel')).toHaveCSS('position', 'relative');
   await expect(page.locator('#centerPanel')).toHaveCSS('z-index', '1');
-  await expect(page.locator('#leftPanel')).toBeVisible();
-  await expect(page.locator('#mainWindow')).not.toHaveClass(/left-panel-closed/);
-  await expect(page.locator('#leftPanelToggleBtn')).toBeVisible();
-  await page.mouse.move(700, 420);
-  await page.waitForTimeout(3200);
-  await expect(page.locator('#leftPanel')).toBeVisible();
-  await expect(page.locator('#leftPanelToggleBtn')).toBeVisible();
+  await expect(page.locator('#leftPanel')).toHaveCount(0);
+  await expect(page.locator('#leftPanelToggleBtn')).toHaveCount(0);
+  await expect(page.locator('#mobileBackdrop')).toHaveCount(0);
+  await expect(page.locator('#conversationSearch')).toHaveCount(0);
+  await expect(page.locator('#mainWindow')).toHaveClass(/single-chat-layout/);
+  await expect(page.locator('.thinking-log-card')).toHaveCount(0);
+  await page.locator('#apiKeyBtn').click();
+  await expect(page.getByText(/Workflow Parameters|إعدادات الاسترجاع/i)).toHaveCount(0);
+  await expect(page.getByText(/Show thinking log|سجل التفكير/i)).toHaveCount(0);
+  await expect(page.getByText(/Retrieval Exploration Cycles|دورات الاسترجاع/i)).toHaveCount(0);
+  await page.getByTitle('Close Settings').click();
   expect(errors).toEqual([]);
   const accessibility = await new AxeBuilder({ page }).analyze();
   expect(accessibility.violations).toEqual([]);
 });
 
-test('demo uses the existing feed and composer; its setting only changes the send path', async ({ page }) => {
+test('synthetic analytics dashboard switches periods and returns to the same chat', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#dashboardToggleBtn').click();
+  const dashboard = page.getByRole('region', { name: 'Synthetic demo analytics dashboard' });
+  await expect(dashboard).toBeVisible();
+  await expect(dashboard.getByRole('button', { name: 'Week' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(dashboard.locator('.analytics-kpi')).toHaveCount(4);
+  await expect(dashboard.getByRole('heading', { name: 'Hot properties' })).toBeVisible();
+  await expect(dashboard.getByRole('heading', { name: 'Hot locations' })).toBeVisible();
+  await expect(dashboard.locator('.analytics-bar-chart')).toBeVisible();
+  await expect(dashboard.getByText(/Synthetic demo analytics only/)).toBeVisible();
+
+  await dashboard.getByRole('button', { name: 'Day' }).click();
+  await expect(dashboard.getByRole('button', { name: 'Day' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(dashboard.locator('.analytics-kpi').first()).toContainText('3');
+  await dashboard.getByRole('button', { name: 'Month' }).click();
+  await expect(dashboard.getByRole('button', { name: 'Month' })).toHaveAttribute('aria-pressed', 'true');
+  await dashboard.getByRole('button', { name: 'Back to chat' }).click();
+  await expect(page.locator('#chatInput')).toBeVisible();
+  await expect(page.locator('#chatInput')).toHaveCount(1);
+  await expect(page.locator('#sendButton')).toHaveCount(1);
+});
+
+test('static demo explains and can clear legacy browser-local API-key data', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('rea_local_vault_profiles_v1', JSON.stringify([
+      { id: 'old-profile', label: 'Old local profile', provider: 'deepseek', model: 'deepseek-chat', key: 'sample-placeholder-value', is_active: true },
+    ]));
+  });
+  await page.goto('/');
+  await page.locator('#apiKeyBtn').click();
+  const safety = page.getByRole('region', { name: 'Static demo safety' });
+  await expect(safety.getByText(/Older API-key data remains in this browser/)).toBeVisible();
+  await safety.getByRole('button', { name: 'Clear saved local API-key data' }).click();
+  await expect(safety.getByText(/Older API-key data remains in this browser/)).toHaveCount(0);
+  await expect(page.locator('#demoModeToggle')).toHaveCount(0);
+  await expect(page.getByPlaceholder(/API Key/i)).toHaveCount(0);
+  await expect(page.getByTitle('Close Settings')).toBeVisible();
+});
+
+test('the local SVG Egypt map renders and drills into synthetic listings offline', async ({ page }) => {
+  const remoteMapRequests: string[] = [];
+  page.on('request', (request) => {
+    if (/tile|mapbox|google.*maps|openstreetmap/i.test(request.url())) remoteMapRequests.push(request.url());
+  });
+  await page.goto('/');
+  const map = page.locator('.egypt-map-svg');
+  await expect(map).toBeVisible();
+  await expect(map.locator('path').last()).toBeVisible();
+  await expect(map.locator('.egypt-map-marker')).not.toHaveCount(0);
+  await page.getByRole('button', { name: /^Cairo, \d+ synthetic demo properties$/i }).click();
+  await expect(page.getByRole('navigation', { name: 'Map navigation' }).getByRole('button', { name: 'Cairo', exact: true })).toBeVisible();
+  await expect(map.getByRole('button', { name: /^New Cairo, \d+ synthetic demo properties$/i })).toBeVisible();
+  expect(remoteMapRequests).toEqual([]);
+});
+
+test('public static demo stays no-key and uses the existing feed and composer', async ({ page }) => {
   const aiProviderRequests: string[] = [];
   page.on('request', (request) => {
     if (/api\.openai\.com|api\.deepseek\.com|generativelanguage\.googleapis\.com|api\.groq\.com/i.test(request.url())) aiProviderRequests.push(request.url());
@@ -37,15 +109,11 @@ test('demo uses the existing feed and composer; its setting only changes the sen
 
   await page.mouse.move(500, 400);
   await page.locator('#apiKeyBtn').click();
-  const toggle = page.getByRole('switch', { name: 'Demo mode' });
-  await expect(toggle).toBeVisible();
-  await expect(toggle).toHaveAttribute('aria-checked', 'true');
-  await toggle.click();
-  await expect(toggle).toHaveAttribute('aria-checked', 'false');
-  await expect(chat.getByText(/Peace be upon you\. I'm Sara, the sales manager\./i)).toBeVisible();
-  await toggle.click();
-  await expect(toggle).toHaveAttribute('aria-checked', 'true');
-  await expect(chat.getByText(/Peace be upon you\. I'm Sara, the sales manager\./i)).toHaveCount(1);
+  await expect(page.getByRole('region', { name: 'Static demo safety' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Static demo mode' })).toBeVisible();
+  await expect(page.locator('#demoModeToggle')).toHaveCount(0);
+  await expect(page.getByPlaceholder(/API Key/i)).toHaveCount(0);
+  await expect(page.getByText(/there is no secure backend here/i)).toBeVisible();
   await page.getByTitle('Close Settings').click();
 
   const input = page.locator('#chatInput');
@@ -135,33 +203,40 @@ test('demo continues with a transparent closest listing when Alexandria has no e
   await expect(input).toBeEnabled();
 });
 
-test('mobile conversation menu opens as a stable drawer and closes through its controls', async ({ page }) => {
+test('completed demo can restart inline without adding a second composer or history menu', async ({ page }) => {
+  await page.goto('/');
+  const chat = page.locator('#chatMessages');
+  const input = page.locator('#chatInput');
+  const send = page.locator('#sendButton');
+  const quickReplies = page.getByRole('group', { name: 'Demo quick replies' });
+  await expect(chat.getByText(/Peace be upon you\. I'm Sara, the sales manager\./i)).toBeVisible();
+
+  for (const answer of ['New Cairo', '8.5 million EGP', '160 square metres']) {
+    await input.fill(answer);
+    await send.click();
+    await expect(input).toBeEnabled();
+  }
+  await quickReplies.getByRole('button', { name: 'Yes, continue' }).click();
+  await expect(chat.getByText(/The price is/i)).toBeVisible();
+  await quickReplies.getByRole('button', { name: 'Yes, continue' }).click();
+  await quickReplies.getByRole('button', { name: 'Cash' }).click();
+  await quickReplies.getByRole('button', { name: 'Confirm interest' }).click();
+  await quickReplies.getByRole('button', { name: 'Start another search' }).click();
+  await expect(chat.getByText(/Peace be upon you\. I'm Sara, the sales manager\./i)).toHaveCount(1);
+  await expect(chat.getByText('New Cairo', { exact: true })).toHaveCount(0);
+  await expect(input).toHaveCount(1);
+  await expect(send).toHaveCount(1);
+  await expect(page.locator('#leftPanel, #leftPanelToggleBtn, #mobileBackdrop, #conversationSearch')).toHaveCount(0);
+});
+
+test('mobile single-chat layout has no conversations drawer or menu toggle', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await expect(page.locator('#chatInput')).toBeVisible();
-  const toggle = page.locator('#leftPanelToggleBtn');
-  const panel = page.locator('#leftPanel');
-  await expect(toggle).toBeVisible();
-  await toggle.click();
-  await expect(page.locator('body')).toHaveClass(/mobile-sidebar-open/);
-  await expect(page.locator('#conversationSearch')).toBeVisible();
-  await expect(panel).toHaveCSS('opacity', '1');
-  await page.waitForTimeout(450);
-  const openBounds = await panel.boundingBox();
-  expect(openBounds).not.toBeNull();
-  expect(openBounds!.x).toBeGreaterThanOrEqual(0);
-  await page.waitForTimeout(1200);
-  await expect(page.locator('body')).toHaveClass(/mobile-sidebar-open/);
-  await expect(page.locator('#conversationSearch')).toBeVisible();
-
-  await page.locator('#mobileBackdrop').click({ position: { x: 360, y: 400 } });
-  await expect(page.locator('body')).not.toHaveClass(/mobile-sidebar-open/);
-  await toggle.click();
-  await expect(page.locator('body')).toHaveClass(/mobile-sidebar-open/);
-  await page.locator('#chatList .chat-item').first().click();
-  await expect(page.locator('body')).not.toHaveClass(/mobile-sidebar-open/);
-  await toggle.click();
-  await expect(page.locator('body')).toHaveClass(/mobile-sidebar-open/);
-  await page.locator('#mobileBackdrop').click({ position: { x: 360, y: 400 } });
-  await expect(page.locator('body')).not.toHaveClass(/mobile-sidebar-open/);
+  await expect(page.locator('#sendButton')).toBeVisible();
+  await expect(page.locator('#leftPanel')).toHaveCount(0);
+  await expect(page.locator('#leftPanelToggleBtn')).toHaveCount(0);
+  await expect(page.locator('#mobileBackdrop')).toHaveCount(0);
+  await expect(page.locator('#chatInput')).toHaveCount(1);
+  await expect(page.locator('#sendButton')).toHaveCount(1);
 });

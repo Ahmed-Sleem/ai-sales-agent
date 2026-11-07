@@ -2,8 +2,7 @@
 
 /**
  * WHY: Master Global Workspace State (`AppContext.tsx`).
- * Manages no-login device memory, encrypted server-side API-key vault metadata,
- * persistent per-device conversations, UI language/theme, graph state, and global modals.
+ * Manages device-local app preferences, conversation state, optional API profiles, and global modals.
  */
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { GlobalModals } from "../components/GlobalModals";
@@ -63,8 +62,6 @@ interface AppContextType {
   setApiProvider: (provider: "deepseek" | "groq" | "openai" | "gemini") => void;
   apiModel: string;
   setApiModel: (model: string) => void;
-  workflowCycles: number;
-  setWorkflowCycles: (cycles: number) => void;
   savedApiKeys: SavedApiKey[];
   activeApiKeyId: string | null;
   refreshVaultProfiles: () => Promise<void>;
@@ -75,39 +72,21 @@ interface AppContextType {
   getActiveAgentKey: () => { key: string; provider: string; model: string } | null;
   isSettingsOpen: boolean;
   setIsSettingsOpen: (open: boolean) => void;
+  workspaceView: "chat" | "dashboard";
+  setWorkspaceView: React.Dispatch<React.SetStateAction<"chat" | "dashboard">>;
+  isStaticDemo: boolean;
+  localApiKeyDataPresent: boolean;
+  clearLocalApiKeyData: () => void;
   demoMode: boolean;
   setDemoMode: React.Dispatch<React.SetStateAction<boolean>>;
-  activeGraphNodeIds: string[];
-  setActiveGraphNodeIds: React.Dispatch<React.SetStateAction<string[]>>;
-  vizPhase: string;
-  setVizPhase: React.Dispatch<React.SetStateAction<string>>;
-  shortlistedIds: string[];
-  setShortlistedIds: React.Dispatch<React.SetStateAction<string[]>>;
-  rejectedIds: string[];
-  setRejectedIds: React.Dispatch<React.SetStateAction<string[]>>;
-  focusedPropertyId: string | null;
-  setFocusedPropertyId: React.Dispatch<React.SetStateAction<string | null>>;
-  drillPath: string[];
-  setDrillPath: React.Dispatch<React.SetStateAction<string[]>>;
   theme: "dark" | "light";
   setTheme: (theme: "dark" | "light") => void;
-  vizColored: boolean;
-  setVizColored: React.Dispatch<React.SetStateAction<boolean>>;
-  vizTransparency: number;
-  vizViewMode: "planet" | "list";
-  showThinkingLog: boolean;
-  setShowThinkingLog: React.Dispatch<React.SetStateAction<boolean>>;
-  setVizViewMode: React.Dispatch<React.SetStateAction<"planet" | "list">>;
-  setVizTransparency: React.Dispatch<React.SetStateAction<number>>;
   vizSelection: { id: string; name: string; detail: string } | null;
   setVizSelection: React.Dispatch<React.SetStateAction<{ id: string; name: string; detail: string } | null>>;
   conversations: Conversation[];
   activeConversationId: string | null;
-  setActiveConversationId: (id: string | null) => void;
-  createConversation: () => void;
+  startNewConversation: () => void;
   addTurnToConversation: (turn: ConversationTurn) => void;
-  deleteConversation: (id: string) => void;
-  deleteAllConversations: () => void;
   isReady: boolean;
   t: (key: string) => string;
 }
@@ -123,7 +102,7 @@ const translations: Record<string, Record<"ar" | "en", string>> = {
   save: { ar: "حفظ وتفعيل", en: "Save & Activate" },
   cancel: { ar: "إلغاء", en: "Cancel" },
   api_key_placeholder: { ar: "أدخل مفتاح DeepSeek أو Groq أو OpenAI أو Google Gemini (sk-... / gsk_... / AIza...)", en: "Enter DeepSeek, Groq, OpenAI, or Google Gemini API Key (sk-... / gsk_... / AIza...)" },
-  api_key_desc: { ar: "يتم حفظ المفاتيح مشفرة على الخادم ومربوطة بهذا الجهاز بدون تسجيل دخول.", en: "Key profiles are encrypted server-side and bound to this no-login device." },
+  api_key_desc: { ar: "مفاتيح API غير متاحة في النسخة التجريبية الثابتة.", en: "API keys are not available in the static demo build." },
   select_doc_hint: { ar: "انقر لتحديد النطاق:", en: "Click to scope chat:" },
   no_docs: { ar: "لا توجد مستندات مؤسسية مفهرسة حتى الآن.", en: "No official workspace documents indexed yet." },
   ready: { ar: "جاهز ومفهرس", en: "Ready & Indexed" },
@@ -139,26 +118,18 @@ const isProvider = (value: unknown): value is "deepseek" | "groq" | "openai" | "
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [deviceId, setDeviceId] = useState<string>("dev_default");
   const [isReady, setIsReady] = useState<boolean>(false);
-  const [language, setLanguageState] = useState<"ar" | "en">("en");
+  const [language, setLanguageState] = useState<"ar" | "en">("ar");
   const [apiProvider, setApiProviderState] = useState<"deepseek" | "groq" | "openai" | "gemini">("deepseek");
   const [apiModel, setApiModelState] = useState<string>("deepseek-chat");
-  const [workflowCycles, setWorkflowCyclesState] = useState<number>(3);
   const [savedApiKeys, setSavedApiKeys] = useState<SavedApiKey[]>([]);
   const [activeApiKeyId, setActiveApiKeyId] = useState<string | null>(null);
   const [vaultError, setVaultError] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [workspaceView, setWorkspaceView] = useState<"chat" | "dashboard">("chat");
+  const [isStaticDemo, setIsStaticDemo] = useState<boolean>(true);
+  const [localApiKeyDataPresent, setLocalApiKeyDataPresent] = useState<boolean>(false);
   const [demoMode, setDemoMode] = useState<boolean>(true);
-  const [activeGraphNodeIds, setActiveGraphNodeIds] = useState<string[]>([]);
-  const [vizPhase, setVizPhase] = useState<string>("IDLE");
-  const [shortlistedIds, setShortlistedIds] = useState<string[]>([]);
-  const [rejectedIds, setRejectedIds] = useState<string[]>([]);
-  const [focusedPropertyId, setFocusedPropertyId] = useState<string | null>(null);
-  const [drillPath, setDrillPath] = useState<string[]>([]);
   const [theme, setThemeState] = useState<"dark" | "light">("dark");
-  const [vizColored, setVizColored] = useState<boolean>(false); // skeleton (white) by default
-  const [vizTransparency, setVizTransparency] = useState<number>(68); // % transparent in skeleton mode (futuristic default)
-  const [vizViewMode, setVizViewMode] = useState<"planet" | "list">("planet"); // fallback list view closes the globe
-  const [showThinkingLog, setShowThinkingLog] = useState<boolean>(false); // thinking log hidden by default
   const [vizSelection, setVizSelection] = useState<{ id: string; name: string; detail: string } | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([
     {
@@ -184,33 +155,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
 
-  // ---- Local vault (static hosting, e.g. GitHub Pages): no backend exists, so
-  // profiles live in this browser only. Activated when the vault API is absent
-  // (405/404 HTML from a static host) instead of surfacing that HTML as an error.
+  // ---- Detect static hosts such as GitHub Pages. In that case API-key storage
+  // is disabled: the demo stays no-key and old local profiles are only offered for explicit clearing.
   const localVaultRef = useRef<boolean>(false);
   type LocalProfile = SavedApiKey & { key: string };
   const LOCAL_VAULT_KEY = "rea_local_vault_profiles_v1";
+  const localApiKeyStorageKeys = (devId = deviceId) => [
+    LOCAL_VAULT_KEY,
+    `gpr_saved_keys_${devId}`,
+    "gpr_saved_keys",
+    `gpr_active_key_id_${devId}`,
+    "gpr_active_key_id",
+    "gpr_llm_api_key",
+    "gpr_llm_provider",
+    "gpr_llm_model",
+  ];
+  const hasLocalApiKeyData = (devId = deviceId) => localApiKeyStorageKeys(devId).some((key) => Boolean(localStorage.getItem(key)));
   const loadLocalProfiles = (): LocalProfile[] => {
     try { const raw = localStorage.getItem(LOCAL_VAULT_KEY); const arr = raw ? JSON.parse(raw) : []; return Array.isArray(arr) ? arr : []; } catch { return []; }
   };
-  const saveLocalProfiles = (profiles: LocalProfile[]) => localStorage.setItem(LOCAL_VAULT_KEY, JSON.stringify(profiles));
-  const applyLocalProfiles = () => {
-    const profiles = loadLocalProfiles();
-    setSavedApiKeys(profiles.map(({ key, ...rest }) => ({ ...rest, key_hint: key ? key.slice(-4) : undefined })));
-    const active = profiles.find(p => p.is_active) || profiles[0];
-    applyActiveProfileMetadata(profiles, active ? active.id : null);
-  };
-  const seedLocalProfilesFromLegacy = () => {
-    if (loadLocalProfiles().length) return;
-    const legacy: LocalProfile[] = [];
-    const collect = (jsonText: string | null) => { if (!jsonText) return; try { const arr = JSON.parse(jsonText); if (!Array.isArray(arr)) return; arr.forEach((item: any, i: number) => { if (item?.key) legacy.push({ id: item.id || `local_${i}`, label: item.label || "Local Profile", provider: isProvider(item.provider) ? item.provider : "deepseek", model: item.model || "deepseek-chat", key: item.key, is_active: !!item.is_active }); }); } catch { /* ignore */ } };
-    collect(localStorage.getItem(`gpr_saved_keys_${deviceId}`)); collect(localStorage.getItem("gpr_saved_keys"));
-    const single = localStorage.getItem("gpr_llm_api_key"); if (single) legacy.push({ id: "local_single", label: "Local Profile", provider: isProvider(localStorage.getItem("gpr_llm_provider")) ? (localStorage.getItem("gpr_llm_provider") as any) : "deepseek", model: localStorage.getItem("gpr_llm_model") || "deepseek-chat", key: single, is_active: true });
-    if (legacy.length) { if (!legacy.some(p => p.is_active)) legacy[0].is_active = true; saveLocalProfiles(legacy); }
-  };
-
   const getActiveAgentKey = (): { key: string; provider: string; model: string } | null => {
-    // Static hosting: read the active profile (incl. key) from the browser-local vault.
+    // Static hosting deliberately refuses browser-local API keys; the public demo is no-key only.
+    if (localVaultRef.current) return null;
     try {
       const profiles = loadLocalProfiles();
       const active = profiles.find(p => p.is_active) || profiles[0];
@@ -219,8 +185,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return null;
   };
 
+  const clearLocalApiKeyData = () => {
+    localApiKeyStorageKeys().forEach((key) => localStorage.removeItem(key));
+    setLocalApiKeyDataPresent(false);
+    setSavedApiKeys([]);
+    setActiveApiKeyId(null);
+  };
+
   const refreshVaultProfiles = async () => {
-    if (localVaultRef.current) { applyLocalProfiles(); return; }
+    if (localVaultRef.current) { setSavedApiKeys([]); setActiveApiKeyId(null); return; }
     const res = await fetch("/api/v1/vault/profiles", { credentials: "include" });
     if (!res.ok) {
       const text = await res.text();
@@ -319,12 +292,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const bootstrap = await fetch("/api/v1/vault/bootstrap", { method: "POST", credentials: "include" });
       const bootText = bootstrap.ok ? "" : await bootstrap.text();
       if (!bootstrap.ok) {
-        // Static hosting (GitHub Pages) answers POST with 405 HTML: there is no
-        // vault server by design. Fall back to the browser-local vault silently.
+        // Static hosting (GitHub Pages) answers with 404/405 HTML: there is no
+        // vault server by design. Keep the no-key demo and do not load local key profiles.
         if (bootstrap.status === 404 || bootstrap.status === 405 || bootText.includes("<html")) {
           localVaultRef.current = true;
-          seedLocalProfilesFromLegacy();
-          applyLocalProfiles();
+          setIsStaticDemo(true);
+          setDemoMode(true);
+          setSavedApiKeys([]);
+          setActiveApiKeyId(null);
+          setLocalApiKeyDataPresent(hasLocalApiKeyData(devId));
           setVaultError(null);
           return;
         }
@@ -332,6 +308,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
       await migrateLegacyKeysToVault(devId);
       await refreshVaultProfiles();
+      setIsStaticDemo(false);
+      setLocalApiKeyDataPresent(false);
     } catch (err) {
       setVaultError(err instanceof Error ? err.message : "Encrypted vault initialization failed.");
     }
@@ -346,16 +324,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
       setDeviceId(devId);
 
-      const savedLang = (localStorage.getItem("gpr_language") as "ar" | "en") || "en";
-      const savedTheme = "dark"; // light-mode button removed: app runs dark-only
-      setVizColored(localStorage.getItem("rea_viz_colored") === "true");
-      const savedTransp = Number(localStorage.getItem("rea_viz_transparency"));
-      if (Number.isFinite(savedTransp) && savedTransp >= 0 && savedTransp <= 90) setVizTransparency(savedTransp);
-      if (localStorage.getItem("rea_viz_view") === "list") setVizViewMode("list");
-      setShowThinkingLog(localStorage.getItem("rea_show_thinking_log") === "true");
-      const savedCycles = parseInt(localStorage.getItem(`gpr_workflow_cycles_${devId}`) || "3", 10);
-      setLanguageState(savedLang === "ar" || savedLang === "en" ? savedLang : "en");
-      if (savedCycles >= 1 && savedCycles <= 6) setWorkflowCyclesState(savedCycles);
+      const storedLang = localStorage.getItem("gpr_language");
+      const savedLang = storedLang === "ar" || storedLang === "en" ? storedLang : "ar";
+      setLanguageState(savedLang);
       document.documentElement.dir = savedLang === "ar" ? "rtl" : "ltr";
       document.documentElement.lang = savedLang === "ar" ? "ar" : "en";
       setThemeState("dark");
@@ -427,10 +398,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     else document.body.classList.remove("dark-mode");
   };
 
-  useEffect(() => { localStorage.setItem("rea_viz_colored", String(vizColored)); }, [vizColored]);
-  useEffect(() => { localStorage.setItem("rea_viz_transparency", String(vizTransparency)); }, [vizTransparency]);
-  useEffect(() => { localStorage.setItem("rea_viz_view", vizViewMode); }, [vizViewMode]);
-  useEffect(() => { localStorage.setItem("rea_show_thinking_log", String(showThinkingLog)); }, [showThinkingLog]);
 
   const setApiProvider = (prov: "deepseek" | "groq" | "openai" | "gemini") => {
     setApiProviderState(prov);
@@ -440,18 +407,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setApiModelState(model);
   };
 
-  const setWorkflowCycles = (cycles: number) => {
-    const valid = Math.min(Math.max(cycles, 1), 6);
-    setWorkflowCyclesState(valid);
-    localStorage.setItem(`gpr_workflow_cycles_${deviceId}`, String(valid));
-  };
-
   const addSavedApiKey = async (keyObj: NewApiKeyProfile) => {
-    if (localVaultRef.current) {
-      const profiles = loadLocalProfiles().map(p => ({ ...p, is_active: false }));
-      profiles.push({ id: `local_${Date.now()}`, label: keyObj.label, provider: keyObj.provider, model: keyObj.model, key: keyObj.key, is_active: true, created_at: new Date().toISOString() });
-      saveLocalProfiles(profiles); applyLocalProfiles(); return;
-    }
+    if (localVaultRef.current) throw new Error("API keys are disabled in this static demo. Use the no-key demo mode.");
     const res = await fetch("/api/v1/vault/profiles", {
       method: "POST",
       credentials: "include",
@@ -470,52 +427,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const deleteSavedApiKey = async (id: string) => {
-    if (localVaultRef.current) { saveLocalProfiles(loadLocalProfiles().filter(p => p.id !== id)); applyLocalProfiles(); return; }
+    if (localVaultRef.current) throw new Error("There are no API key profiles in static demo mode.");
     const res = await fetch(`/api/v1/vault/profiles/${id}`, { method: "DELETE", credentials: "include" });
     if (!res.ok) throw new Error(await res.text());
     await refreshVaultProfiles();
   };
 
   const selectSavedApiKey = async (id: string) => {
-    if (localVaultRef.current) { saveLocalProfiles(loadLocalProfiles().map(p => ({ ...p, is_active: p.id === id }))); applyLocalProfiles(); return; }
+    if (localVaultRef.current) throw new Error("API keys are disabled in this static demo.");
     const res = await fetch(`/api/v1/vault/profiles/${id}/activate`, { method: "POST", credentials: "include" });
     if (!res.ok) throw new Error(await res.text());
     await refreshVaultProfiles();
   };
 
 
-  const setActiveConversationId = (id: string | null) => {
-    if (!id) {
-      setActiveConversationIdState(null);
-      return;
-    }
-    setConversations(prev => {
-      const active = prev.find(c => c.id === activeConversationId);
-      if (active && active.id !== id && active.turns.length === 0) {
-        return prev.filter(c => c.id !== active.id);
-      }
-      return prev;
-    });
-    setActiveConversationIdState(id);
-  };
-
-  const createConversation = () => {
-    const active = conversations.find(c => c.id === activeConversationId);
-    if (active && active.turns.length === 0) {
-      setActiveConversationIdState(active.id);
-      return;
-    }
-
-    const existingEmpty = conversations.find(c => c.turns.length === 0);
-    if (existingEmpty) {
-      setActiveConversationIdState(existingEmpty.id);
-      return;
-    }
-
-    const newId = `conv_${Date.now()}`;
+  const startNewConversation = () => {
+    const newId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const newConv: Conversation = {
       id: newId,
-      title: language === "ar" ? "محادثة استفسار في الدليل المؤسسي" : "New Grounded Query",
+      title: language === "ar" ? "بحث عقاري جديد" : "New property search",
       created_at: new Date().toISOString(),
       turns: []
     };
@@ -538,37 +468,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
   };
 
-  const deleteConversation = (id: string) => {
-    setConversations(prev => {
-      const updated = prev.filter(c => c.id !== id);
-      if (updated.length === 0) {
-        const defaultConv: Conversation = {
-          id: `conv_${Date.now()}`,
-          title: language === "ar" ? "محادثة استفسار في الدليل المؤسسي" : "New Grounded Query",
-          created_at: new Date().toISOString(),
-          turns: []
-        };
-        setActiveConversationIdState(defaultConv.id);
-        return [defaultConv];
-      } else if (activeConversationId === id) {
-        setActiveConversationIdState(updated[0].id);
-      }
-      return updated;
-    });
-  };
-
-  const deleteAllConversations = () => {
-    const defaultConv: Conversation = {
-      id: `conv_${Date.now()}`,
-      title: language === "ar" ? "محادثة استفسار في الدليل المؤسسي" : "New Grounded Query",
-      created_at: new Date().toISOString(),
-      turns: []
-    };
-    setConversations([defaultConv]);
-    setActiveConversationIdState(defaultConv.id);
-    localStorage.setItem(`gpr_conversations_${deviceId}`, JSON.stringify([defaultConv]));
-  };
-
   const t = (key: string): string => translations[key]?.[language] || key;
 
   return (
@@ -582,8 +481,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setApiProvider,
         apiModel,
         setApiModel,
-        workflowCycles,
-        setWorkflowCycles,
         savedApiKeys,
         activeApiKeyId,
         refreshVaultProfiles,
@@ -594,18 +491,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         getActiveAgentKey,
         isSettingsOpen,
         setIsSettingsOpen,
+        workspaceView,
+        setWorkspaceView,
+        isStaticDemo,
+        localApiKeyDataPresent,
+        clearLocalApiKeyData,
         demoMode,
         setDemoMode,
-        activeGraphNodeIds,
-        vizPhase, setVizPhase, shortlistedIds, setShortlistedIds, rejectedIds, setRejectedIds, focusedPropertyId, setFocusedPropertyId, drillPath, setDrillPath, theme, setTheme, vizColored, setVizColored, vizTransparency, setVizTransparency, vizViewMode, setVizViewMode, showThinkingLog, setShowThinkingLog, vizSelection, setVizSelection,
-        setActiveGraphNodeIds,
+        theme, setTheme, vizSelection, setVizSelection,
         conversations,
         activeConversationId,
-        setActiveConversationId,
-        createConversation,
+        startNewConversation,
         addTurnToConversation,
-        deleteConversation,
-        deleteAllConversations,
         t
       }}
     >

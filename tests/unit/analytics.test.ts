@@ -90,12 +90,12 @@ describe('synthetic analytics dataset and aggregation', () => {
     const second = aggregateDemoAnalytics();
     expect(first).toEqual(second);
     expect(first.asOf).toBe(DEMO_ANALYTICS_AS_OF);
-    expect(first.periods.day).toMatchObject({ startDate: '2026-11-05', endDate: '2026-11-05', clients: 3 });
-    expect(first.periods.week).toMatchObject({ startDate: '2026-11-02', endDate: '2026-11-05', clients: 8 });
-    expect(first.periods.month).toMatchObject({ startDate: '2026-11-01', endDate: '2026-11-05', clients: 9 });
+    expect(first.periods.day).toMatchObject({ startDate: '2026-11-07', endDate: '2026-11-07', clients: 3 });
+    expect(first.periods.week).toMatchObject({ startDate: '2026-11-02', endDate: '2026-11-07', clients: 10 });
+    expect(first.periods.month).toMatchObject({ startDate: '2026-11-01', endDate: '2026-11-07', clients: 11 });
     expect(first.periods.day.series).toHaveLength(1);
-    expect(first.periods.week.series).toHaveLength(4);
-    expect(first.periods.month.series).toHaveLength(5);
+    expect(first.periods.week.series).toHaveLength(6);
+    expect(first.periods.month.series).toHaveLength(7);
   });
 
   it('counts distinct clients separately from conversations and reconciles period totals', () => {

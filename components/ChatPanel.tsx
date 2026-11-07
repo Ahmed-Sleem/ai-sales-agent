@@ -3,8 +3,7 @@
 /**
  * WHY: Chat Workspace Panel (`ChatPanel.tsx`) — exact DOM structure from `index (31).html`.
  * Per Ahmed's exact instructions (`GAP-GPR-22`):
- * 1. Decodes live JSON tokens (`data: {"token": "..."}`) to guarantee zero truncation and zero connected characters.
- * 2. Displays a visible **Cycle Reasoning Log Card (`[ 🔄 TOC Navigation Steps ]`)** right inside the streaming bubble.
+ * Streams assistant responses into the existing transcript without exposing internal tool traces.
  */
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
@@ -16,21 +15,15 @@ const PUBLIC_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const createTurnId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-interface ExtendedTurn extends ConversationTurn {
-  cycle_logs?: string[];
-}
-
 export const ChatPanel: React.FC = () => {
   const {
-    conversations, activeConversationId, addTurnToConversation,
-    savedApiKeys, activeApiKeyId, apiProvider, apiModel, language, setActiveGraphNodeIds, deviceId, workflowCycles, setIsSettingsOpen, t, setVizPhase, setShortlistedIds, setRejectedIds, setFocusedPropertyId, drillPath, setDrillPath, vizSelection, setVizSelection, getActiveAgentKey, showThinkingLog, demoMode
+    conversations, activeConversationId, addTurnToConversation, startNewConversation,
+    savedApiKeys, activeApiKeyId, language, setIsSettingsOpen, t, vizSelection, setVizSelection, getActiveAgentKey, demoMode, isStaticDemo
   } = useApp();
 
   const [inputMessage, setInputMessage] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
-  const [activeSearchStatus, setActiveSearchStatus] = useState<string | null>(null);
-  const [cycleLogs, setCycleLogs] = useState<string[]>([]);
   const [copyConvSuccess, setCopyConvSuccess] = useState(false);
   const [showCopyBtn, setShowCopyBtn] = useState(false);
   const [demoSession, setDemoSession] = useState<DemoConversationState | null>(null);
@@ -43,8 +36,9 @@ export const ChatPanel: React.FC = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const activeConv = conversations.find(c => c.id === activeConversationId);
-  const turns = activeConv ? (activeConv.turns as ExtendedTurn[]) : [];
+  const turns = activeConv ? activeConv.turns : [];
   const demoSessionKey = `${activeConversationId ?? "no-conversation"}:${language}`;
+  const effectiveDemoMode = isStaticDemo || demoMode;
 
   const scheduleStreamingPaint = () => {
     if (rafRef.current !== null) return;
@@ -61,7 +55,7 @@ export const ChatPanel: React.FC = () => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [turns, streamingContent, activeSearchStatus, cycleLogs]);
+  }, [turns, streamingContent]);
 
   useEffect(() => {
     if (showCopyBtn && !copyConvSuccess) {
@@ -110,12 +104,12 @@ export const ChatPanel: React.FC = () => {
     }
   }, [addTurnToConversation]);
 
-  const demoQuickReplies = demoMode && demoSession && demoSessionConversationId === activeConversationId
+  const demoQuickReplies = effectiveDemoMode && demoSession && demoSessionConversationId === activeConversationId
     ? getDemoQuickReplies(demoSession)
     : [];
 
   useEffect(() => {
-    if (!demoMode || !activeConversationId || demoSessionKeyRef.current === demoSessionKey) return;
+    if (!effectiveDemoMode || !activeConversationId || demoSessionKeyRef.current === demoSessionKey) return;
     demoSessionKeyRef.current = demoSessionKey;
     const started = beginDemoConversation(language);
     setDemoSession(started.state);
@@ -124,7 +118,7 @@ export const ChatPanel: React.FC = () => {
     void streamDemoAssistantTurns(started.assistantTurns)
       .catch(() => undefined)
       .finally(() => setIsStreaming(false));
-  }, [demoMode, activeConversationId, demoSessionKey, language, addTurnToConversation, streamDemoAssistantTurns]);
+  }, [effectiveDemoMode, activeConversationId, demoSessionKey, language, addTurnToConversation, streamDemoAssistantTurns]);
 
   const handleSend = async (e?: React.FormEvent, quickReply?: DemoQuickReply) => {
     if (e) e.preventDefault();
@@ -132,10 +126,17 @@ export const ChatPanel: React.FC = () => {
       abortControllerRef.current?.abort();
       return;
     }
+    if (quickReply?.id === "restart-demo") {
+      setInputMessage("");
+      setDemoSession(null);
+      setDemoSessionConversationId(null);
+      startNewConversation();
+      return;
+    }
     const userText = quickReply?.label ?? inputMessage.trim();
     if (!userText) return;
 
-    if (!demoMode) {
+    if (!effectiveDemoMode) {
       const activeProfileId = activeApiKeyId || (savedApiKeys && savedApiKeys.length > 0 ? savedApiKeys[0].id : null);
       if (!activeProfileId) {
         alert(language === "ar"
@@ -156,7 +157,7 @@ export const ChatPanel: React.FC = () => {
     };
     addTurnToConversation(userTurn);
 
-    if (demoMode) {
+    if (effectiveDemoMode) {
       setIsStreaming(true);
       streamingContentRef.current = "";
       setStreamingContent("");
@@ -189,10 +190,6 @@ export const ChatPanel: React.FC = () => {
     setIsStreaming(true);
     streamingContentRef.current = "";
     setStreamingContent("");
-    setCycleLogs([]);
-    setActiveSearchStatus(language === "ar" ? "🔍 جاري تحليل السؤال ومراجعة الفهرس..." : "🔍 Analyzing query and examining TOC...");
-
-    const accumulatedLogs: string[] = [];
 
     try {
       const creds = getActiveAgentKey();
@@ -203,32 +200,23 @@ export const ChatPanel: React.FC = () => {
         creds,
         message: userText,
         history: turns.slice(-6).map(turnItem => ({ role: turnItem.role, content: turnItem.content })),
-        maxCycles: workflowCycles || 3,
+        maxCycles: 3,
         vizSelection: vizSelection ? { name: vizSelection.name, detail: vizSelection.detail } : null,
         events: {
-          onStatus: (status) => { setActiveSearchStatus(status); accumulatedLogs.push(status); setCycleLogs([...accumulatedLogs]); },
-          onViz: (viz) => {
-            if (viz.drillPath) setDrillPath(viz.drillPath);
-            if (viz.inspectIds) { setVizPhase("THINKING"); setActiveGraphNodeIds(viz.inspectIds); }
-            if (viz.shortlistIds) { setVizPhase("SHORTLIST"); setShortlistedIds(viz.shortlistIds); setActiveGraphNodeIds(viz.shortlistIds); }
-            if (viz.rejectedIds) setRejectedIds(viz.rejectedIds);
-            if (viz.focusId) { setFocusedPropertyId(viz.focusId); setVizPhase("FOCUS"); }
-          },
           onToken: (full) => { partialText = full; streamingContentRef.current = full; scheduleStreamingPaint(); },
         },
       });
       partialText = answer;
-      const assistantTurn: ExtendedTurn = {
+      const assistantTurn: ConversationTurn = {
         id: createTurnId("turn_a"),
         role: "assistant",
         content: partialText || (language === "ar" ? "تم استكمال البحث." : "Search completed."),
-        timestamp: new Date().toISOString(),
-        cycle_logs: accumulatedLogs
+        timestamp: new Date().toISOString()
       };
       addTurnToConversation(assistantTurn);
     } catch (e: any) {
       const isAbort = e?.name === "AbortError";
-      const errTurn: ExtendedTurn = {
+      const errTurn: ConversationTurn = {
         id: createTurnId("turn_err"),
         role: "assistant",
         content: isAbort
@@ -241,8 +229,6 @@ export const ChatPanel: React.FC = () => {
       abortControllerRef.current = null;
       setIsStreaming(false);
       setStreamingContent("");
-      setActiveSearchStatus(null);
-      setCycleLogs([]);
     }
   };
 
@@ -387,24 +373,6 @@ export const ChatPanel: React.FC = () => {
                 {turn.role === "user" ? (language === "ar" ? "أنت" : "You") : (language === "ar" ? "وكيل العقارات" : "The Real Estate Agent")}
               </span>
               <div className="content">
-                {/* Render cycle logs card if saved for assistant turn and actual nodes were requested (`Point 9 & Point 10`) */}
-                {showThinkingLog && turn.role === "assistant" && turn.cycle_logs && turn.cycle_logs.some(l => l.includes("Inspecting") || l.includes("Requested inspection") || l.includes("inspecting")) && (
-                  <div className="thinking-log-card" style={{
-                    background: "var(--color-slate)", border: "1px solid var(--border-soft)",
-                    borderRadius: "var(--radius-sm)",
-                    display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px", color: "var(--text-meta)"
-                  }}>
-                    <div style={{ fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "6px" }}>
-                      <span>{language === "ar" ? "سجل الاستقصاء والتفكير:" : "THINKING LOG:"}</span>
-                    </div>
-                    {turn.cycle_logs.map((logStr, lIdx) => (
-                      <div key={lIdx} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <span>•</span><span>{logStr}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
                 {turn.role === "assistant" ? renderContentWithCitations(turn.content) : turn.content}
                 {turn.role === "assistant" ? turn.demoPhotos?.map((photo) => (
                   <figure className="demo-photo-in-bubble" key={`${turn.id}_${photo.src}`}>
@@ -421,44 +389,10 @@ export const ChatPanel: React.FC = () => {
         ))}
 
         {isStreaming ? (
-          <div className="message" role="article" aria-label="Message from assistant" data-demo-streaming={demoMode ? "true" : undefined}>
+          <div className="message" role="article" aria-label="Message from assistant" data-demo-streaming={effectiveDemoMode ? "true" : undefined}>
             <div className="bubble">
               <span className="role-label">{language === "ar" ? "وكيل العقارات" : "The Real Estate Agent"}</span>
               <div className="content">
-                {/* Live status feed — only when thinking log is enabled in Settings */}
-                {showThinkingLog && isStreaming && !demoMode && (
-                  <div className="thinking-log-card" style={{
-                    background: "var(--color-slate)", border: "1px solid var(--border-soft)",
-                    borderRadius: "var(--radius-sm)",
-                    display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px", color: "var(--text-meta)"
-                  }}>
-                    <div style={{ fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "6px" }}>
-                      <span>{language === "ar" ? "سجل الاستقصاء والتفكير الجاري:" : "THINKING LOG:"}</span>
-                    </div>
-                    {cycleLogs.length > 0 ? (
-                      cycleLogs.map((logStr, lIdx) => (
-                        <div key={lIdx} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                          <span>•</span><span>{logStr}</span>
-                        </div>
-                      ))
-                    ) : activeSearchStatus ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <span>•</span><span>{activeSearchStatus}</span>
-                      </div>
-                    ) : (
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px", opacity: 0.7 }}>
-                        <span>•</span><span>{language === "ar" ? "جارٍ معالجة الاستفسار..." : "Processing query..."}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {showThinkingLog && activeSearchStatus && (
-                  <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-accent)", marginBottom: "6px", opacity: 0.9 }}>
-                    {activeSearchStatus}
-                  </div>
-                )}
-
                 {streamingContent ? (
                   renderContentWithCitations(streamingContent)
                 ) : (
@@ -513,7 +447,7 @@ export const ChatPanel: React.FC = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      {demoMode && demoQuickReplies.length > 0 ? (
+      {effectiveDemoMode && demoQuickReplies.length > 0 ? (
         <div className="chat-demo-quick-replies" role="group" aria-label={language === "ar" ? "اختيارات سريعة للتجربة" : "Demo quick replies"}>
           {demoQuickReplies.map((reply) => (
             <button key={reply.id} type="button" onClick={() => { void handleSend(undefined, reply); }} disabled={isStreaming}>
@@ -529,7 +463,7 @@ export const ChatPanel: React.FC = () => {
             {language === "ar" ? "المحدد من الخريطة:" : "Selected on map:"} <b>{vizSelection.name}</b> <span style={{ color: "var(--text-meta)" }}>{vizSelection.detail}</span>
           </span>
                     <button type="button" aria-label={language === "ar" ? "إلغاء التحديد" : "Unselect"} title={language === "ar" ? "إلغاء التحديد" : "Unselect — do not send this selection"}
-            onClick={() => { setVizSelection(null); setFocusedPropertyId(null); }}
+            onClick={() => { setVizSelection(null); }}
             style={{ marginLeft: "2px", flex: "0 0 auto", width: "18px", height: "18px", borderRadius: "50%", border: "1px solid var(--border-med)", background: "transparent", color: "var(--text-primary)", cursor: "pointer", lineHeight: 1 }}>✕</button>
         </div>
       )}
@@ -540,7 +474,7 @@ export const ChatPanel: React.FC = () => {
             ref={textareaRef}
             id="chatInput"
             className="chat-input composer-input"
-            placeholder={demoMode
+            placeholder={effectiveDemoMode
               ? language === "ar" ? "اكتب ردك لساره في التجربة…" : "Type your reply to Sara in Demo mode…"
               : t("ask_placeholder")}
             value={inputMessage}
