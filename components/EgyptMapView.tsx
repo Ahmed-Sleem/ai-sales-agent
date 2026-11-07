@@ -9,6 +9,8 @@ import { PropertyDetailView } from "./PropertyDetailView";
 
 const MAP_WIDTH = 598;
 const MAP_HEIGHT = 548;
+const MAX_MAP_ZOOM = 28;
+const DETAIL_ROADS_ZOOM = 8;
 const PUBLIC_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const ADMIN_SCALE_X = MAP_WIDTH / 548.58221;
 const ADMIN_SCALE_Y = MAP_HEIGHT / 498.86664;
@@ -63,9 +65,18 @@ const nameIn = (value: LocalizedText, language: "en" | "ar") => value[language];
 const markerPoint = (coordinates: { latitude: number; longitude: number }) =>
   projectEgyptCoordinate(coordinates.latitude, coordinates.longitude, { ...EGYPT_MAP_VIEWBOX, width: MAP_WIDTH, height: MAP_HEIGHT, padding: 8 });
 
+const svgViewMetrics = (svg: SVGSVGElement) => {
+  const scale = Math.min(svg.clientWidth / MAP_WIDTH, svg.clientHeight / MAP_HEIGHT);
+  return {
+    scale,
+    offsetX: (svg.clientWidth - MAP_WIDTH * scale) / 2,
+    offsetY: (svg.clientHeight - MAP_HEIGHT * scale) / 2,
+  };
+};
 const paintCompositorTransform = (svg: SVGSVGElement, view: { zoom: number; pan: { x: number; y: number } }) => {
-  const x = view.pan.x * svg.clientWidth / MAP_WIDTH;
-  const y = view.pan.y * svg.clientHeight / MAP_HEIGHT;
+  const metrics = svgViewMetrics(svg);
+  const x = metrics.offsetX * (1 - view.zoom) + view.pan.x * metrics.scale;
+  const y = metrics.offsetY * (1 - view.zoom) + view.pan.y * metrics.scale;
   svg.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${view.zoom})`;
 };
 const settleVectorTransform = (svg: SVGSVGElement | null, group: SVGGElement | null, view: { zoom: number; pan: { x: number; y: number } }) => {
@@ -84,6 +95,7 @@ export const EgyptMapView: React.FC = () => {
   const [shortlistIds, setShortlistIds] = useState<readonly string[]>([]);
   const [rejectedIds, setRejectedIds] = useState<readonly string[]>([]);
   const [zoom, setZoom] = useState(1);
+  const markerCounterScale = 1 / zoom;
   const initialView = { zoom: 1, pan: { x: 0, y: 0 } };
   const viewRef = useRef(initialView);
   const targetViewRef = useRef(initialView);
@@ -107,7 +119,7 @@ export const EgyptMapView: React.FC = () => {
   );
 
   const transitionView = useCallback((targetZoom: number, targetPan: { x: number; y: number }) => {
-    const target = { zoom: Math.max(1, Math.min(7, targetZoom)), pan: targetPan };
+    const target = { zoom: Math.max(1, Math.min(MAX_MAP_ZOOM, targetZoom)), pan: targetPan };
     targetViewRef.current = target;
     const nextLabel = target.zoom.toFixed(1).replace(/\.0$/, "");
     const nextLabelsVisible = target.zoom > 1.22;
@@ -165,7 +177,7 @@ export const EgyptMapView: React.FC = () => {
     animationFrameRef.current = window.requestAnimationFrame(animate);
   }, []);
   const zoomToPoint = useCallback((point: SvgPoint, scale: number) => {
-    const next = Math.max(1, Math.min(7, scale));
+    const next = Math.max(1, Math.min(MAX_MAP_ZOOM, scale));
     transitionView(next, { x: MAP_WIDTH / 2 - point.x * next, y: MAP_HEIGHT / 2 - point.y * next });
   }, [transitionView]);
   const mapSelectionFor = (id: string, name: string, detail: string, level: MapSelection["level"], coordinates?: { latitude: number; longitude: number }): MapSelection => ({
@@ -184,7 +196,7 @@ export const EgyptMapView: React.FC = () => {
       setCityId(marker.cityId); setDistrictId(marker.districtId ?? null); setCommunityId(marker.communityId ?? null);
     }
     const point = markerPoint(coordinates);
-    zoomToPoint(point, marker.level === "city" ? 2.0 : marker.level === "district" ? 3.1 : 4.2);
+    zoomToPoint(point, marker.level === "city" ? 20 : marker.level === "district" ? 24 : 26);
     const label = nameIn(marker.name, language);
     setVizSelection(mapSelectionFor(marker.id, label, marker.level, marker.level, coordinates));
   };
@@ -198,7 +210,7 @@ export const EgyptMapView: React.FC = () => {
       return;
     }
     setCityId(null); setDistrictId(null); setCommunityId(null); setPropertyId(null);
-    zoomToPoint(markerPoint(place.coordinates), 2.15);
+    zoomToPoint(markerPoint(place.coordinates), 20);
     setVizSelection(mapSelectionFor(`place:${place.id}`, nameIn(place.name, language), isArabic ? "مدينة" : "City", "city", place.coordinates));
   };
 
@@ -207,7 +219,7 @@ export const EgyptMapView: React.FC = () => {
     setPropertyId(property.id);
     setCityId(property.city.id); setDistrictId(property.district.id); setCommunityId(property.community.id);
     const point = markerPoint(property.coordinates);
-    zoomToPoint(point, 5.2);
+    zoomToPoint(point, 26);
     setVizSelection(mapSelectionFor(property.id, nameIn(property.title, language), `${nameIn(property.community.name, language)} · ${property.areaSqm} m²`, "property", property.coordinates));
   };
 
@@ -219,7 +231,7 @@ export const EgyptMapView: React.FC = () => {
     setPropertyId(null); setDistrictId(null); setCommunityId(null);
     const catalogCityId = CATALOG_CITY_BY_GOVERNORATE[region.id];
     setCityId(catalogCityId ?? null);
-    zoomToPoint(point, 1.75);
+    zoomToPoint(point, 12);
     const label = nameIn(region.name, language);
     setVizSelection(mapSelectionFor(`governorate:${region.id}`, label, isArabic ? "محافظة" : "Governorate", "governorate"));
   };
@@ -248,16 +260,16 @@ export const EgyptMapView: React.FC = () => {
         if (focusedProperty) {
           setPropertyId(focusedProperty.id);
           setCityId(focusedProperty.city.id); setDistrictId(focusedProperty.district.id); setCommunityId(focusedProperty.community.id);
-          zoomToPoint(markerPoint(focusedProperty.coordinates), 5.2);
+          zoomToPoint(markerPoint(focusedProperty.coordinates), 26);
         } else {
           const focusedLocation = EGYPT_LOCATION_MARKERS.find((marker) => marker.id === directive.focusId || marker.cityId === directive.focusId || marker.districtId === directive.focusId || marker.communityId === directive.focusId);
-          if (focusedLocation) zoomToPoint(markerPoint(focusedLocation.coordinates), focusedLocation.level === "city" ? 2 : focusedLocation.level === "district" ? 3.1 : 4.2);
+          if (focusedLocation) zoomToPoint(markerPoint(focusedLocation.coordinates), focusedLocation.level === "city" ? 20 : focusedLocation.level === "district" ? 24 : 26);
         }
       } else if (nextCommunity || nextDistrict || nextCity) {
         const focus = EGYPT_LOCATION_MARKERS.find((marker) => marker.communityId === nextCommunity && marker.districtId === nextDistrict && marker.cityId === nextCity)
           ?? EGYPT_LOCATION_MARKERS.find((marker) => marker.districtId === nextDistrict && marker.cityId === nextCity)
           ?? EGYPT_LOCATION_MARKERS.find((marker) => marker.cityId === nextCity);
-        if (focus) zoomToPoint(markerPoint(focus.coordinates), focus.level === "city" ? 1.9 : focus.level === "district" ? 3 : 4);
+        if (focus) zoomToPoint(markerPoint(focus.coordinates), focus.level === "city" ? 20 : focus.level === "district" ? 24 : 26);
       } else {
         transitionView(1, { x: 0, y: 0 });
       }
@@ -275,13 +287,14 @@ export const EgyptMapView: React.FC = () => {
     const viewport = svg.parentElement;
     if (!viewport) return;
     const rect = viewport.getBoundingClientRect();
-    const localX = (event.clientX - rect.left - viewport.clientLeft) * MAP_WIDTH / svg.clientWidth;
-    const localY = (event.clientY - rect.top - viewport.clientTop) * MAP_HEIGHT / svg.clientHeight;
+    const metrics = svgViewMetrics(svg);
+    const localX = (event.clientX - rect.left - viewport.clientLeft - metrics.offsetX) / metrics.scale;
+    const localY = (event.clientY - rect.top - viewport.clientTop - metrics.offsetY) / metrics.scale;
     const pixels = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaMode === 2 ? event.deltaY * rect.height : event.deltaY;
     const boundedDelta = Math.max(-220, Math.min(220, pixels));
     const displayed = viewRef.current;
     const targetZoom = targetViewRef.current.zoom;
-    const nextZoom = Math.max(1, Math.min(7, targetZoom * Math.exp(-boundedDelta * 0.00135)));
+    const nextZoom = Math.max(1, Math.min(MAX_MAP_ZOOM, targetZoom * Math.exp(-boundedDelta * 0.00135)));
     const pointX = (localX - displayed.pan.x) / displayed.zoom;
     const pointY = (localY - displayed.pan.y) / displayed.zoom;
     transitionView(nextZoom, {
@@ -301,8 +314,9 @@ export const EgyptMapView: React.FC = () => {
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
     const pointer = pointerRef.current;
     if (!pointer || pointer.id !== event.pointerId) return;
-    const dx = (event.clientX - pointer.x) * MAP_WIDTH / (event.currentTarget.clientWidth * viewRef.current.zoom);
-    const dy = (event.clientY - pointer.y) * MAP_HEIGHT / (event.currentTarget.clientHeight * viewRef.current.zoom);
+    const scale = svgViewMetrics(event.currentTarget).scale;
+    const dx = (event.clientX - pointer.x) / (scale * viewRef.current.zoom);
+    const dy = (event.clientY - pointer.y) / (scale * viewRef.current.zoom);
     if (!pointer.moved && Math.abs(dx) + Math.abs(dy) > 3) {
       pointer.moved = true;
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -326,7 +340,7 @@ export const EgyptMapView: React.FC = () => {
   };
   const zoomBy = (amount: number) => {
     const current = targetViewRef.current;
-    const nextZoom = Math.max(1, Math.min(7, current.zoom + amount));
+    const nextZoom = Math.max(1, Math.min(MAX_MAP_ZOOM, current.zoom * Math.exp(amount * 0.86)));
     const center = { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 };
     const ratio = nextZoom / current.zoom;
     transitionView(nextZoom, {
@@ -346,7 +360,7 @@ export const EgyptMapView: React.FC = () => {
     const showLabel = zoom > 1.22 || ["cairo", "alexandria", "giza", "giza-west", "north-coast", "luxor", "aswan", "suez", "matrouh"].includes(place.id);
     if (!showLabel) return null;
     return (
-      <g key={place.id} className={`map-place ${active ? "selected" : ""}`} role="button" tabIndex={0}
+      <g key={place.id} transform={`translate(${point.x} ${point.y}) scale(${markerCounterScale}) translate(${-point.x} ${-point.y})`} className={`map-place ${active ? "selected" : ""}`} role="button" tabIndex={0}
         aria-label={`${nameIn(place.name, language)}${catalogMarker ? `, ${catalogMarker.propertyCount} ${isArabic ? "وحدات توضيحية" : "illustrative listings"}` : ""}`}
         data-map-location-id={place.id}
         onClick={() => catalogMarker ? selectLocation(catalogMarker, place.coordinates) : selectPlace(place)}
@@ -366,7 +380,7 @@ export const EgyptMapView: React.FC = () => {
     const shortlisted = marker.propertyIds.some((id) => shortlistIds.includes(id));
     const rejected = marker.propertyIds.some((id) => rejectedIds.includes(id));
     return (
-      <g key={marker.id} className={`map-cluster ${active ? "highlighted" : ""} ${shortlisted ? "shortlisted" : ""} ${rejected ? "rejected" : ""}`} role="button" tabIndex={0}
+      <g key={marker.id} transform={`translate(${point.x} ${point.y}) scale(${markerCounterScale}) translate(${-point.x} ${-point.y})`} className={`map-cluster ${active ? "highlighted" : ""} ${shortlisted ? "shortlisted" : ""} ${rejected ? "rejected" : ""}`} role="button" tabIndex={0}
         aria-label={`${nameIn(marker.name, language)}, ${marker.propertyCount} ${isArabic ? "وحدات توضيحية" : "illustrative listings"}`}
         data-map-location-id={marker.id} onClick={() => selectLocation(marker)}
         onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectLocation(marker); } }}>
@@ -387,7 +401,7 @@ export const EgyptMapView: React.FC = () => {
     const shortlisted = shortlistIds.includes(property.id);
     const rejected = rejectedIds.includes(property.id);
     return (
-      <g key={property.id} className={`map-property ${selected ? "selected" : ""} ${shortlisted ? "shortlisted" : ""} ${rejected ? "rejected" : ""}`} role="button" tabIndex={0}
+      <g key={property.id} transform={`translate(${point.x} ${point.y}) scale(${markerCounterScale}) translate(${-point.x} ${-point.y})`} className={`map-property ${selected ? "selected" : ""} ${shortlisted ? "shortlisted" : ""} ${rejected ? "rejected" : ""}`} role="button" tabIndex={0}
         aria-label={`${nameIn(property.title, language)}, ${property.areaSqm} ${isArabic ? "متر مربع" : "square metres"}`}
         data-map-location-id={property.id} onClick={() => selectProperty(property)}
         onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectProperty(property); } }}>
@@ -418,9 +432,10 @@ export const EgyptMapView: React.FC = () => {
             <linearGradient id="map-vignette" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#091523" stopOpacity=".1"/><stop offset="1" stopColor="#06101a" stopOpacity=".22"/></linearGradient>
             <filter id="map-marker-shadow" x="-100%" y="-100%" width="300%" height="300%"><feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#02070d" floodOpacity=".75"/></filter>
           </defs>
-          <g ref={transformGroupRef} transform="translate(0 0) scale(1)">
+          <g ref={transformGroupRef} className="map-view-transform" transform="translate(0 0) scale(1)">
             <image className="map-osm-basemap" href={`${PUBLIC_BASE_PATH}/maps/egypt-openstreetmap.svg`} x="0" y="0" width={MAP_WIDTH} height={MAP_HEIGHT} preserveAspectRatio="none" aria-hidden="true" />
             <rect x="0" y="0" width={MAP_WIDTH} height={MAP_HEIGHT} fill="url(#map-vignette)" pointerEvents="none" />
+            {zoom >= DETAIL_ROADS_ZOOM ? <image className="map-detail-basemap" href={`${PUBLIC_BASE_PATH}/maps/egypt-city-roads.svg`} x="0" y="0" width={MAP_WIDTH} height={MAP_HEIGHT} preserveAspectRatio="none" aria-hidden="true" /> : null}
             <g className="map-governorates" transform={`scale(${ADMIN_SCALE_X} ${ADMIN_SCALE_Y})`}>
               {GOVERNORATE_SHAPES.map((region) => {
                 const selected = selectedGovernorateId === region.id || Boolean(regionCityId(region.id) && cityId === regionCityId(region.id));
@@ -445,10 +460,10 @@ export const EgyptMapView: React.FC = () => {
           <button type="button" aria-label={isArabic ? "تكبير الخريطة" : "Zoom in"} title={isArabic ? "تكبير" : "Zoom in"} onClick={() => zoomBy(0.35)}>+</button>
           <span aria-live="polite">{coordsLabel}×</span>
           <button type="button" aria-label={isArabic ? "تصغير الخريطة" : "Zoom out"} title={isArabic ? "تصغير" : "Zoom out"} onClick={() => zoomBy(-0.35)}>−</button>
-          <button type="button" aria-label={isArabic ? "إعادة ضبط عرض الخريطة" : "Reset map view"} title={isArabic ? "إعادة ضبط" : "Reset view"} onClick={resetMap}>⌖</button>
+          <button type="button" aria-label={isArabic ? "إعادة ضبط عرض الخريطة" : "Reset map view"} title={isArabic ? "إعادة ضبط" : "Reset view"} onClick={resetMap}><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
         </div>
 
-        {currentName ? <div className="map-focus-label" aria-live="polite"><span aria-hidden="true">⌖</span>{currentName}</div> : null}
+        {currentName ? <div className="map-focus-label" aria-live="polite">{currentName}</div> : null}
         {selectedProperty ? <div className="map-focus-property" aria-live="polite"><strong>{nameIn(selectedProperty.title, language)}</strong><span>{selectedProperty.areaSqm} m² · {selectedProperty.bedrooms} {isArabic ? "غرف" : "beds"}</span><small>{isArabic ? "وحدة توضيحية" : "Illustrative sample unit"}</small></div> : null}
         <div className="map-synthetic-legend"><span aria-hidden="true" />{isArabic ? "المخزون العقاري توضيحي" : "Illustrative property inventory"}</div>
         <a className="map-osm-credit" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" aria-label={isArabic ? "مساهمو OpenStreetMap، رخصة ODbL" : "OpenStreetMap contributors, ODbL"}>© OpenStreetMap</a>

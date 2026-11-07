@@ -130,10 +130,16 @@ test('the bundled OSM map supports admin-region selection, zoom, and chat attach
   const portSaidRegion = map.locator('.map-governorate-shape[data-governorate-id="EG-PTS"]');
   await portSaidRegion.press('Enter');
   await expect(portSaidRegion).toHaveClass(/selected/);
-  await expect(portSaidRegion).toHaveCSS('fill', 'rgba(167, 139, 250, 0.055)');
+  await expect(portSaidRegion).toHaveCSS('fill', 'rgba(0, 0, 0, 0)');
   await expect(portSaidRegion).toHaveCSS('filter', /drop-shadow/);
+  await expect(page.locator('.map-focus-label')).toHaveCSS('border-width', '0px');
+  await expect(page.locator('.map-focus-label')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect(page.locator('.map-focus-label span')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Reset map view' }).locator('svg')).toBeVisible();
+  await expect(map.locator('.map-detail-basemap')).toHaveAttribute('href', /egypt-city-roads\.svg$/);
   await expect(page.locator('#centerPanel').getByText(/Selected on map:/)).toContainText('Port Said');
   await page.getByRole('button', { name: 'Reset map view' }).click();
+  await expect(map.locator('.map-detail-basemap')).toHaveCount(0);
   await page.waitForTimeout(760);
 
   const zoom = page.locator('.map-control-stack span');
@@ -173,18 +179,33 @@ test('the bundled OSM map supports admin-region selection, zoom, and chat attach
   expect(wheelMidZoom).toBeLessThan(1.4);
   await expect(zoom).toHaveText('1.2×');
   await expect(transformedMap).toHaveAttribute('style', 'transform: translate3d(0px, 0px, 0px) scale(1);');
-  const vectorMap = map.locator('g[transform^="translate("]');
+  const vectorMap = map.locator('.map-view-transform');
   const settledTransform = await vectorMap.getAttribute('transform');
   const settledMatch = settledTransform?.match(/translate\(([-\d.]+) ([-\d.]+)\) scale\(([-\d.]+)\)/);
   expect(settledMatch).not.toBeNull();
   const settledZoom = Number(settledMatch?.[3]);
-  const localCursorX = (cursor.x - wheelBounds.x - 1) * 598 / (wheelBounds.width - 2);
-  const localCursorY = (cursor.y - wheelBounds.y - 1) * 548 / (wheelBounds.height - 2);
+  const localCursor = await map.evaluate((svg, point) => {
+    const viewport = svg.parentElement!;
+    const scale = Math.min(svg.clientWidth / 598, svg.clientHeight / 548);
+    const offsetX = (svg.clientWidth - 598 * scale) / 2;
+    const offsetY = (svg.clientHeight - 548 * scale) / 2;
+    return {
+      x: (point.x - viewport.getBoundingClientRect().left - viewport.clientLeft - offsetX) / scale,
+      y: (point.y - viewport.getBoundingClientRect().top - viewport.clientTop - offsetY) / scale,
+    };
+  }, cursor);
+  const localCursorX = localCursor.x;
+  const localCursorY = localCursor.y;
   expect(Math.abs(Number(settledMatch?.[1]) - localCursorX * (1 - settledZoom))).toBeLessThan(2);
   expect(Math.abs(Number(settledMatch?.[2]) - localCursorY * (1 - settledZoom))).toBeLessThan(2);
   await page.locator('.map-place[data-map-location-id="cairo"] circle.map-place-dot').click();
   await expect(page.locator('.map-focus-label')).toContainText('Cairo');
   await expect(map.locator('.map-cluster[data-map-location-id^="district:"]')).not.toHaveCount(0);
+  await expect(map.locator('.map-detail-basemap')).toHaveAttribute('href', /egypt-city-roads\.svg$/);
+  await expect(zoom).toHaveText('20×');
+  await expect(transformedMap).toHaveAttribute('style', 'transform: translate3d(0px, 0px, 0px) scale(1);');
+  const cityScale = Number((await map.locator('.map-view-transform').getAttribute('transform'))?.match(/scale\(([-\d.]+)\)/)?.[1] ?? 0);
+  expect(cityScale).toBeCloseTo(20, 1);
 
   await page.locator('#chatInput').fill('Tell me about this area');
   await page.locator('#sendButton').click();

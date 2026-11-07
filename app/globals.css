@@ -1250,8 +1250,8 @@ body[dir="rtl"] .main-window.single-chat-layout.right-panel-closed {
 .map-osm-basemap { pointer-events:none; }
 .map-governorate-shape { fill:rgba(94,174,209,.025); stroke:#8ab7cf; stroke-width:.8; stroke-opacity:.52; vector-effect:non-scaling-stroke; cursor:pointer; pointer-events:all; transition:fill .16s,stroke .16s,filter .16s; }
 .map-governorate-shape:hover,.map-governorate-shape:focus-visible { fill:rgba(56,189,248,.15); stroke:#bae6fd; stroke-opacity:.95; stroke-width:1.6; outline:none; }
-.map-governorate-shape.selected { fill:rgba(167,139,250,.025); stroke:#c4b5fd; stroke-opacity:1; stroke-width:1.8; filter:drop-shadow(0 0 4px rgba(167,139,250,.9)); }
-.map-governorate-shape.selected:hover,.map-governorate-shape.selected:focus-visible { fill:rgba(167,139,250,.055); stroke:#ddd6fe; }
+.map-governorate-shape.selected { fill:transparent; stroke:#c4b5fd; stroke-opacity:1; stroke-width:1.8; filter:drop-shadow(0 0 4px rgba(167,139,250,.9)); }
+.map-governorate-shape.selected:hover,.map-governorate-shape.selected:focus-visible { fill:transparent; stroke:#ddd6fe; }
 .map-place,.map-cluster,.map-property { cursor:pointer; outline:none; filter:url(#map-marker-shadow); }
 .map-place:focus-visible circle,.map-cluster:focus-visible circle,.map-property:focus-visible circle { stroke:#fbbf24; stroke-width:2.5; }
 .map-place-dot { fill:#a5b4c4; stroke:#e2e8f0; stroke-width:.7; }
@@ -1276,9 +1276,8 @@ body[dir="rtl"] .main-window.single-chat-layout.right-panel-closed {
 .map-control-stack button { display:grid; place-items:center; width:29px; height:29px; border:0; border-radius:8px; background:rgba(148,163,184,.12); color:#f1f5f9; font-size:18px; line-height:1; cursor:pointer; }
 .map-control-stack button:hover { background:rgba(56,189,248,.22); }
 .map-control-stack span { min-width:30px; text-align:center; color:#a8c5d9; font:700 9px/1.2 system-ui,sans-serif; }
-.map-focus-label { position:absolute; z-index:2; inset-block-start:12px; inset-inline-start:12px; display:flex; align-items:center; gap:7px; max-width:calc(100% - 66px); padding:7px 10px; overflow:hidden; border:1px solid rgba(56,189,248,.35); border-radius:10px; background:rgba(6,16,27,.82); color:#e0f2fe; font-size:11px; font-weight:800; text-overflow:ellipsis; white-space:nowrap; backdrop-filter:blur(10px); }
-.map-focus-label span { color:#38bdf8; }
-.map-focus-property { position:absolute; z-index:2; inset-block-end:38px; inset-inline-start:12px; display:flex; flex-direction:column; gap:3px; max-width:calc(100% - 24px); padding:8px 10px; border:1px solid rgba(56,189,248,.35); border-radius:10px; background:rgba(6,16,27,.86); color:#e0f2fe; font-size:10px; backdrop-filter:blur(10px); }
+.map-focus-label { position:absolute; z-index:2; inset-block-start:12px; inset-inline-start:12px; display:flex; align-items:center; gap:7px; max-width:calc(100% - 66px); padding:4px 0; overflow:hidden; border:0; border-radius:0; background:transparent; color:#e0f2fe; font-size:11px; font-weight:800; text-overflow:ellipsis; white-space:nowrap; text-shadow:0 1px 5px #02070d,0 0 9px #02070d; }
+.map-focus-property { position:absolute; z-index:2; inset-block-end:38px; inset-inline-start:12px; display:flex; flex-direction:column; gap:3px; max-width:calc(100% - 24px); padding:0; border:0; border-radius:0; background:transparent; color:#e0f2fe; font-size:10px; text-shadow:0 1px 5px #02070d,0 0 9px #02070d; }
 .map-focus-property strong { font-size:11px; }
 .map-focus-property span { color:#b9cbd8; }
 .map-focus-property small { color:#7dd3fc; font-size:8px; }
