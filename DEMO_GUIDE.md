@@ -15,7 +15,8 @@ The demo opens in Arabic for visitors without a saved language preference, using
 - After reviewing a sample property, you can confirm, explore another option, give a reason it is unsuitable, or request synthetic example photos.
 - The toolbar switches the right-side panel between the map and analytics. The map is replaced in that panel while Analysis is open; the chat/composer stays visible and the transcript remains intact.
 - The detailed Egypt road map is bundled OpenStreetMap SVG data with an on-map contributor/ODbL credit. Bilingual governorate outlines, place labels, map zoom/pan, selection focus, and catalogue drill-down are local and work offline.
-- Selecting a mapped place attaches it to the user’s chat message; live-agent tool directives can also focus and highlight map results. The illustrated property inventory is explicitly labeled and is not live market data.
+- Selecting a mapped place attaches it to the user’s chat message. In the no-key demo, choosing or typing a city/area in chat also zooms and drills the map; when the demo returns a sample property, its building marker is focused and highlighted. Live-agent tool directives can do the same. The illustrated property inventory is explicitly labeled and is not live market data.
+- The analytics panel keeps its content scrollable on smaller screens but hides the visible scrollbar.
 - Use “Start another search” in the chat after a demo flow is complete to restart in place.
 
 ## Static-hosting and API-key safety

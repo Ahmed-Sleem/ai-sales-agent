@@ -33,7 +33,7 @@ All other concrete behavior listed in the one-page PDF is implemented and verifi
 
 ## Additional map acceptance (requested separately from the PDF)
 
-Map selection is preserved as structured metadata on the user turn and included in the current model-bound message context; tool-generated `VizDirective` drill/focus/highlight updates are delivered to the map panel. Analysis replaces the map in that same right-side panel, while the single chat composer and transcript remain visible. E2E/unit checks cover attachment and map-panel behavior.
+Map selection is preserved as structured metadata on the user turn and included in the current model-bound message context. In the no-key demo, selecting or typing a city/area in chat updates map zoom/drill state, and a returned sample property focuses/highlights its building marker; tool-generated `VizDirective` updates work as well. Analysis replaces the map in that same right-side panel, while the single chat composer/transcript remain visible and the analysis scrollbar is visually hidden. E2E/unit checks cover these interactions.
 
 ## Static public-hosting safety (additional to the PDF checklist)
 
@@ -41,4 +41,4 @@ GitHub Pages is static and does not provide this app a secure backend or API-key
 
 ## Verification evidence
 
-The 2026-11-07 map-refresh grouped `npm run verify` completed successfully: typecheck passed; lint had 12 warnings and no errors; all 118 unit tests passed; secret scan clean; dependency audit found 0 vulnerabilities; production static build passed; all 9 Playwright E2E tests passed. Coverage includes dashboard replacement in the right panel, map selection attachments and zoom/drill behavior, no-key static safety, exact Arabic greeting, staged disclosure, synthetic photos, rejection reasons, accessibility smoke, and mobile layout. A separate `NEXT_PUBLIC_BASE_PATH=/ai-sales-agent npm run build` also passed for the Pages URL.
+The 2026-11-07 map-refresh grouped `npm run verify` completed successfully: typecheck passed; lint had 12 warnings and no errors; all 118 unit tests passed; secret scan clean; dependency audit found 0 vulnerabilities; production static build passed; all 10 Playwright E2E tests passed. Coverage includes dashboard replacement in the right panel, no-key demo chat driving map zoom/drill and sample-property focus, hidden analytics scrollbar, map-selection attachments, no-key static safety, exact Arabic greeting, staged disclosure, synthetic photos, rejection reasons, accessibility smoke, and mobile layout. A separate `NEXT_PUBLIC_BASE_PATH=/ai-sales-agent npm run build` also passed for the Pages URL.

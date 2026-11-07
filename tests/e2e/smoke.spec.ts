@@ -43,6 +43,7 @@ test('synthetic analytics dashboard switches periods and returns to the same cha
   await expect(dashboard).toBeVisible();
   await expect(page.locator('#rightPanel .egypt-map-svg')).toBeHidden();
   await expect(page.locator('#rightPanel .analytics-dashboard')).toBeVisible();
+  expect(await dashboard.evaluate((element) => getComputedStyle(element).scrollbarWidth)).toBe('none');
   await expect(page.locator('#chatInput')).toBeVisible();
   await expect(page.locator('#chatInput')).toHaveCount(1);
   await expect(dashboard.getByRole('button', { name: 'Week' })).toHaveAttribute('aria-pressed', 'true');
@@ -64,6 +65,16 @@ test('synthetic analytics dashboard switches periods and returns to the same cha
   await expect(page.locator('#chatInput')).toBeVisible();
   await expect(page.locator('#chatInput')).toHaveCount(1);
   await expect(page.locator('#sendButton')).toHaveCount(1);
+});
+
+test('a location quick reply in the no-key demo focuses the map and attaches the selected city', async ({ page }) => {
+  await page.goto('/');
+  const quickReplies = page.getByRole('group', { name: 'Demo quick replies' });
+  await quickReplies.getByRole('button', { name: 'Cairo', exact: true }).click();
+  await expect(page.locator('#chatMessages').getByText(/maximum budget/i)).toBeVisible();
+  await expect(page.locator('.map-focus-label')).toContainText('Cairo');
+  await expect(page.locator('.map-cluster[data-map-location-id^="district:"]')).not.toHaveCount(0);
+  await expect(page.locator('.map-selection-attachment[data-map-selection-id="city:cairo"]')).toBeVisible();
 });
 
 test('static demo explains and can clear legacy browser-local API-key data', async ({ page }) => {
@@ -169,6 +180,8 @@ test('public static demo stays no-key and uses the existing feed and composer', 
   });
   await send('New Cairo');
   await expect(chat.getByText(/maximum budget/i)).toBeVisible();
+  await expect(page.locator('.map-focus-label')).toContainText('New Cairo');
+  await expect(chat.locator('.map-selection-attachment').first()).toContainText('New Cairo');
   await expect(page.locator('#chatInput')).toBeEnabled();
   const streamSnapshots = await page.evaluate(() =>
     (window as Window & { __demoSnapshots?: Array<{ typing: boolean; text: string }> }).__demoSnapshots ?? []
@@ -179,6 +192,8 @@ test('public static demo stays no-key and uses the existing feed and composer', 
   await expect(chat.getByText(/interior area/i)).toBeVisible();
   await send('160 square metres');
   await expect(chat.getByText(/I found one close match: Apartment 02/i)).toBeVisible();
+  await expect(page.locator('.map-focus-property')).toContainText('Apartment 02');
+  await expect(page.locator('.map-property.selected')).toHaveCount(1);
   await expect(chat.getByText(/Would you like to hear the price/i)).toBeVisible();
   await expect(page.locator('#chatInput')).toBeEnabled();
   await expect(page.locator('#chatMessages .message')).toHaveCount(8);

@@ -7,13 +7,41 @@
  */
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { useApp, ConversationTurn } from "../context/AppContext";
+import { useApp, ConversationTurn, type MapSelection } from "../context/AppContext";
+import { INVENTORY } from "../data/catalogue";
+import { EGYPT_LOCATION_MARKERS } from "../data/egyptMap";
 import { runAgent } from "../lib/agent";
 import { advanceDemoConversation, beginDemoConversation, getDemoQuickReplies, getDemoThinkingDelay, type DemoAssistantTurn, type DemoConversationState, type DemoQuickReply } from "../lib/demoConversation";
+import { parseDemoInput } from "../lib/demoNlu";
 
 const PUBLIC_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const createTurnId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+function mapSelectionFromDemoInput(
+  session: DemoConversationState | null,
+  text: string,
+  language: "ar" | "en",
+  quickReplyId?: string,
+): MapSelection | undefined {
+  if (session?.stage !== "qualification" || !session.qualification) return undefined;
+  const parsed = parseDemoInput({ text, ...(quickReplyId ? { quickReplyId } : {}) }, { kind: "qualification", state: session.qualification });
+  if (parsed.kind !== "qualification" || !parsed.input.location) return undefined;
+  const location = parsed.input.location;
+  const level: NonNullable<MapSelection["level"]> = location.communityId ? "community" : location.districtId ? "district" : "city";
+  const marker = EGYPT_LOCATION_MARKERS.find((item) => item.level === level
+    && item.cityId === location.cityId
+    && (!location.districtId || item.districtId === location.districtId)
+    && (!location.communityId || item.communityId === location.communityId));
+  if (!marker) return undefined;
+  return {
+    id: marker.id,
+    name: marker.name[language],
+    detail: level,
+    level,
+    coordinates: marker.coordinates,
+  };
+}
 
 export const ChatPanel: React.FC = () => {
   const {
@@ -150,12 +178,17 @@ export const ChatPanel: React.FC = () => {
     setInputMessage("");
 
     const sentMapSelection = vizSelection ?? undefined;
+    const currentDemoSession = demoSessionConversationId === activeConversationId ? demoSession : null;
+    const demoMapSelection = effectiveDemoMode
+      ? mapSelectionFromDemoInput(currentDemoSession, userText, language, quickReply?.id)
+      : undefined;
+    const messageMapSelection = demoMapSelection ?? sentMapSelection;
     const userTurn: ConversationTurn = {
       id: createTurnId("turn_u"),
       role: "user",
       content: userText,
       timestamp: new Date().toISOString(),
-      ...(sentMapSelection ? { mapSelection: sentMapSelection } : {}),
+      ...(messageMapSelection ? { mapSelection: messageMapSelection } : {}),
     };
     addTurnToConversation(userTurn);
 
@@ -176,6 +209,23 @@ export const ChatPanel: React.FC = () => {
         const step = advanceDemoConversation(session, userText, quickReply?.id);
         setDemoSession(step.state);
         setDemoSessionConversationId(activeConversationId);
+        const focusedProperty = step.state.disclosure
+          ? INVENTORY.find((property) => property.id === step.state.disclosure?.propertyId)
+          : undefined;
+        if (focusedProperty) {
+          publishMapDirective({
+            drillPath: [focusedProperty.city.id, focusedProperty.district.id, focusedProperty.community.id],
+            focusId: focusedProperty.id,
+            shortlistIds: [focusedProperty.id],
+          });
+        } else if (demoMapSelection) {
+          const locationMarker = EGYPT_LOCATION_MARKERS.find((marker) => marker.id === demoMapSelection.id);
+          if (locationMarker) {
+            publishMapDirective({
+              drillPath: [locationMarker.cityId, locationMarker.districtId, locationMarker.communityId].filter((id): id is string => Boolean(id)),
+            });
+          }
+        }
         await streamDemoAssistantTurns([...openingTurns, ...step.assistantTurns]);
       } catch {
         await streamDemoAssistantTurns([{
