@@ -117,6 +117,11 @@ test('the bundled OSM map supports admin-region selection, zoom, and chat attach
   await expect(zoom).toHaveText('1×');
   await page.getByRole('button', { name: 'Zoom in' }).click();
   await expect(zoom).not.toHaveText('1×');
+  await page.waitForTimeout(120);
+  const midwayZoom = Number((await zoom.textContent())?.replace('×', '') ?? '0');
+  expect(midwayZoom).toBeGreaterThan(1);
+  expect(midwayZoom).toBeLessThan(1.4);
+  await expect(zoom).toHaveText('1.4×');
   const transformedMap = map.locator('g[transform^="translate("]');
   const beforePan = await transformedMap.getAttribute('transform');
   const mapBounds = await map.boundingBox();
@@ -194,6 +199,7 @@ test('public static demo stays no-key and uses the existing feed and composer', 
   await expect(chat.getByText(/I found one close match: Apartment 02/i)).toBeVisible();
   await expect(page.locator('.map-focus-property')).toContainText('Apartment 02');
   await expect(page.locator('.map-property.selected')).toHaveCount(1);
+  await expect(page.locator('.map-property.selected .map-building-glyph')).toBeVisible();
   await expect(chat.getByText(/Would you like to hear the price/i)).toBeVisible();
   await expect(page.locator('#chatInput')).toBeEnabled();
   await expect(page.locator('#chatMessages .message')).toHaveCount(8);

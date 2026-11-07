@@ -1264,6 +1264,12 @@ body[dir="rtl"] .main-window.single-chat-layout.right-panel-closed {
 .map-cluster.shortlisted .map-cluster-ring,.map-property.shortlisted .map-property-dot { fill:rgba(52,211,153,.35); stroke:#34d399; }
 .map-cluster.rejected .map-cluster-ring,.map-property.rejected .map-property-dot { fill:rgba(251,113,133,.34); stroke:#fb7185; }
 .map-property-dot { fill:#38bdf8; stroke:#e0f2fe; stroke-width:1.3; }
+.map-building-glyph { fill:#082437; stroke:#e0f2fe; stroke-width:.55; stroke-linejoin:round; }
+.map-building-detail { fill:none; stroke:#dbeafe; stroke-width:.55; stroke-linecap:round; }
+.map-property.selected .map-building-glyph { fill:#8a6100; stroke:#fff7c2; }
+.map-property.selected .map-building-detail { stroke:#fff7c2; }
+.map-property.shortlisted .map-building-glyph { fill:#064e3b; stroke:#d1fae5; }
+.map-property.rejected .map-building-glyph { fill:#881337; stroke:#ffe4e6; }
 .map-control-stack { position:absolute; z-index:3; inset-block-start:12px; inset-inline-end:12px; display:flex; flex-direction:column; align-items:center; gap:4px; padding:5px; border:1px solid rgba(148,163,184,.25); border-radius:12px; background:rgba(6,16,27,.82); color:#dbeafe; backdrop-filter:blur(10px); box-shadow:0 8px 22px #02070d77; }
 .map-control-stack button { display:grid; place-items:center; width:29px; height:29px; border:0; border-radius:8px; background:rgba(148,163,184,.12); color:#f1f5f9; font-size:18px; line-height:1; cursor:pointer; }
 .map-control-stack button:hover { background:rgba(56,189,248,.22); }

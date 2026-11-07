@@ -72,8 +72,11 @@ export const EgyptMapView: React.FC = () => {
   const [highlightedIds, setHighlightedIds] = useState<readonly string[]>([]);
   const [shortlistIds, setShortlistIds] = useState<readonly string[]>([]);
   const [rejectedIds, setRejectedIds] = useState<readonly string[]>([]);
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [view, setView] = useState({ zoom: 1, pan: { x: 0, y: 0 } });
+  const zoom = view.zoom;
+  const pan = view.pan;
+  const viewRef = useRef(view);
+  const animationFrameRef = useRef<number | null>(null);
   const pointerRef = useRef<{ id: number; x: number; y: number; panX: number; panY: number; moved: boolean } | null>(null);
   const suppressClickRef = useRef(false);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -90,11 +93,46 @@ export const EgyptMapView: React.FC = () => {
     marker.cityId === cityId && (!districtId || marker.districtId === districtId) && (!communityId || marker.communityId === communityId),
   );
 
+  const transitionView = useCallback((targetZoom: number, targetPan: { x: number; y: number }, duration = 420) => {
+    const nextZoom = Math.max(1, Math.min(7, targetZoom));
+    const target = { zoom: nextZoom, pan: targetPan };
+    if (animationFrameRef.current !== null) window.cancelAnimationFrame(animationFrameRef.current);
+    animationFrameRef.current = null;
+    const from = viewRef.current;
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    if (duration <= 0 || reducedMotion) {
+      viewRef.current = target;
+      setView(target);
+      return;
+    }
+    let startedAt = 0;
+    const animate = (now: number) => {
+      if (!startedAt) startedAt = now;
+      const progress = Math.min(1, (now - startedAt) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = {
+        zoom: from.zoom + (target.zoom - from.zoom) * eased,
+        pan: {
+          x: from.pan.x + (target.pan.x - from.pan.x) * eased,
+          y: from.pan.y + (target.pan.y - from.pan.y) * eased,
+        },
+      };
+      viewRef.current = current;
+      setView(current);
+      if (progress < 1) {
+        animationFrameRef.current = window.requestAnimationFrame(animate);
+      } else {
+        viewRef.current = target;
+        setView(target);
+        animationFrameRef.current = null;
+      }
+    };
+    animationFrameRef.current = window.requestAnimationFrame(animate);
+  }, []);
   const zoomToPoint = useCallback((point: SvgPoint, scale: number) => {
     const next = Math.max(1, Math.min(7, scale));
-    setZoom(next);
-    setPan({ x: MAP_WIDTH / 2 - point.x * next, y: MAP_HEIGHT / 2 - point.y * next });
-  }, []);
+    transitionView(next, { x: MAP_WIDTH / 2 - point.x * next, y: MAP_HEIGHT / 2 - point.y * next });
+  }, [transitionView]);
   const mapSelectionFor = (id: string, name: string, detail: string, level: MapSelection["level"], coordinates?: { latitude: number; longitude: number }): MapSelection => ({
     id, name, detail, level, ...(coordinates ? { coordinates } : {}),
   });
@@ -153,7 +191,8 @@ export const EgyptMapView: React.FC = () => {
 
   const resetMap = () => {
     setCityId(null); setDistrictId(null); setCommunityId(null); setPropertyId(null); setSelectedGovernorateId(null);
-    setHighlightedIds([]); setShortlistIds([]); setRejectedIds([]); setZoom(1); setPan({ x: 0, y: 0 });
+    setHighlightedIds([]); setShortlistIds([]); setRejectedIds([]);
+    transitionView(1, { x: 0, y: 0 });
     setVizSelection(null);
   };
 
@@ -185,25 +224,34 @@ export const EgyptMapView: React.FC = () => {
           ?? EGYPT_LOCATION_MARKERS.find((marker) => marker.cityId === nextCity);
         if (focus) zoomToPoint(markerPoint(focus.coordinates), focus.level === "city" ? 1.9 : focus.level === "district" ? 3 : 4);
       } else {
-        setZoom(1); setPan({ x: 0, y: 0 });
+        transitionView(1, { x: 0, y: 0 });
       }
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [mapDirective, zoomToPoint]);
+  }, [mapDirective, transitionView, zoomToPoint]);
+
+  useEffect(() => () => {
+    if (animationFrameRef.current !== null) window.cancelAnimationFrame(animationFrameRef.current);
+  }, []);
 
   const handleWheel = (event: React.WheelEvent<SVGSVGElement>) => {
     event.preventDefault();
     const rect = event.currentTarget.getBoundingClientRect();
     const localX = (event.clientX - rect.left) * MAP_WIDTH / rect.width;
     const localY = (event.clientY - rect.top) * MAP_HEIGHT / rect.height;
-    const nextZoom = Math.max(1, Math.min(7, zoom * (event.deltaY < 0 ? 1.15 : 1 / 1.15)));
-    const ratio = nextZoom / zoom;
-    setPan({ x: localX - (localX - pan.x) * ratio, y: localY - (localY - pan.y) * ratio });
-    setZoom(nextZoom);
+    const current = viewRef.current;
+    const nextZoom = Math.max(1, Math.min(7, current.zoom * (event.deltaY < 0 ? 1.15 : 1 / 1.15)));
+    const ratio = nextZoom / current.zoom;
+    transitionView(nextZoom, {
+      x: localX - (localX - current.pan.x) * ratio,
+      y: localY - (localY - current.pan.y) * ratio,
+    }, 220);
   };
   const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
     if (event.button !== 0) return;
-    pointerRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y, moved: false };
+    if (animationFrameRef.current !== null) window.cancelAnimationFrame(animationFrameRef.current);
+    animationFrameRef.current = null;
+    pointerRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY, panX: viewRef.current.pan.x, panY: viewRef.current.pan.y, moved: false };
   };
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
     const pointer = pointerRef.current;
@@ -214,7 +262,11 @@ export const EgyptMapView: React.FC = () => {
       pointer.moved = true;
       event.currentTarget.setPointerCapture(event.pointerId);
     }
-    if (pointer.moved) setPan({ x: pointer.panX + dx, y: pointer.panY + dy });
+    if (pointer.moved) {
+      const next = { zoom: viewRef.current.zoom, pan: { x: pointer.panX + dx, y: pointer.panY + dy } };
+      viewRef.current = next;
+      setView(next);
+    }
   };
   const handlePointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
     const pointer = pointerRef.current;
@@ -225,11 +277,14 @@ export const EgyptMapView: React.FC = () => {
     pointerRef.current = null;
   };
   const zoomBy = (amount: number) => {
-    const nextZoom = Math.max(1, Math.min(7, zoom + amount));
+    const current = viewRef.current;
+    const nextZoom = Math.max(1, Math.min(7, current.zoom + amount));
     const center = { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 };
-    const ratio = nextZoom / zoom;
-    setPan({ x: center.x - (center.x - pan.x) * ratio, y: center.y - (center.y - pan.y) * ratio });
-    setZoom(nextZoom);
+    const ratio = nextZoom / current.zoom;
+    transitionView(nextZoom, {
+      x: center.x - (center.x - current.pan.x) * ratio,
+      y: center.y - (center.y - current.pan.y) * ratio,
+    });
   };
 
   const regionCityId = (regionId: string) => CATALOG_CITY_BY_GOVERNORATE[regionId];
@@ -290,6 +345,8 @@ export const EgyptMapView: React.FC = () => {
         onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectProperty(property); } }}>
         <title>{nameIn(property.title, language)}</title>
         <circle cx={point.x} cy={point.y} r={selected ? 11 : 7} className="map-property-dot" />
+        <path d={`M${point.x - 3.2} ${point.y + 3.5}V${point.y - 1.3}L${point.x} ${point.y - 3.8}L${point.x + 3.2} ${point.y - 1.3}V${point.y + 3.5}Z`} className="map-building-glyph" pointerEvents="none" />
+        <path d={`M${point.x - 1.2} ${point.y + 3.5}V${point.y + 0.8}H${point.x + 1.2}V${point.y + 3.5}M${point.x - 1.8} ${point.y - 0.5}H${point.x - 1.1}M${point.x + 1.1} ${point.y - 0.5}H${point.x + 1.8}`} className="map-building-detail" pointerEvents="none" />
         {zoom > 2.5 || selected ? <text x={point.x + 10} y={point.y + (index % 2 ? 10 : -8)} className="map-place-label" pointerEvents="none">{nameIn(property.title, language)}</text> : null}
       </g>
     );
